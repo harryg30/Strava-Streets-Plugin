@@ -1,2 +1,5 @@
 # Strava-Streets-Plugin
-A Browser extension to bring Google maps to Strava
+
+Chrome extension that shows Google Street View beside Strava’s route builder.
+
+See `CONTEXT.md` for product language and `docs/adr/` for design decisions.
