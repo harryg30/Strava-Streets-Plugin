@@ -2,13 +2,13 @@
 
 A Chrome extension that shows Google Street View beside Strava’s Route Builder so the rider can see street-level context while drawing a route. On/off and settings live in the Extension Popup; the Pano Window is an in-page overlay on the Route Builder only (torn down when leaving that page; size/position remembered). Street View uses the official Google Maps JavaScript API. The Pano is view-only: it never edits the route.
 
-Credentials: the Access Service is the real path (membership → quota → short-lived Maps access). A Dev Key Override may exist for local debugging only and must not ship in Store builds. Google Maps cost is billed to the project’s Google Cloud account. Price mechanics stay flexible (likely Patreon tiers around $1/month and $5/month). Sideload is fine during development; Chrome Web Store listing can lag the Access Service.
+Credentials: the Access Service is the real path (Google OAuth + `base` membership → daily mint quota → time-limited restricted Maps browser key). A Dev Key Override may exist for local debugging only and must not ship in Store builds. Google Maps cost is billed to the project’s Google Cloud account. Price mechanics stay flexible (likely Patreon tiers around $1/month and $5/month). Sideload is fine during development; Chrome Web Store listing can lag the Access Service.
 
 ## Language
 
 **Route Builder**:
-Strava’s map page for creating or editing a route (plotting the path before saving).
-_Avoid_: activity page, segment explorer, heatmap
+Strava’s map page for creating or editing a route (plotting the path before saving), at `https://www.strava.com/maps/*`.
+_Avoid_: activity page, segment explorer, heatmap, treating `/routes/new` as the product URL
 
 **Pano Window**:
 A draggable, resizable floating overlay on the Route Builder that shows a Google Street View panorama. Closed from the overlay or when leaving the Route Builder; position and size are remembered across visits.
@@ -35,25 +35,45 @@ A mode (toggle in the Extension Popup, default on) that sets the Anchor Point fr
 _Avoid_: always-track-selection, hover-follow
 
 **Extension Popup**:
-The UI opened from the extension’s Chrome toolbar icon. Holds on/off, Tip Follow, and account/access status — not a permanent home for a raw Google API key in Store builds.
-_Avoid_: in-page settings panel
+The UI opened from the extension’s Chrome toolbar icon. Holds a master Street View / Pano on/off, Tip Follow on/off (default on), and an account row (placeholder until Access Service / membership is wired). Not a home for pasting a Google API key.
+_Avoid_: in-page settings panel, Store-facing “paste your API key”
 
 **Coverage Gap**:
-An Anchor Point with no Street View imagery. The Pano Window shows an empty state and keeps showing the last successful Pano until a covered Anchor Point is chosen.
-_Avoid_: auto-snap to nearest imagery
+An Anchor Point with no Street View imagery. The Pano Window keeps showing the last successful Pano and tells the rider there is no Street View at this point; the surface should still look alive and working. The notice clears when a covered Anchor Point succeeds. “Covered” means imagery within a short search of the Anchor, shown as that resolved Pano — not a long pull to the nearest street. Before any successful Pano, a gap may show an empty viewport plus the notice.
+_Avoid_: blanking a prior successful Pano, auto-snap to distant nearest imagery, treating a loose nearby hit then re-applying the raw click coordinate
 
 **Access Service**:
-The project-owned backend that checks membership/billing, enforces quota, and provides short-lived credentials so the extension can load Street View without exposing the master Google key.
-_Avoid_: shipping the Google API key in Store builds, “each user makes a Google Cloud account” as the product
+The project-owned backend that authenticates riders with Google OAuth (every successful login gets Role `base`), enforces Quota, and Mints a Grant of the project’s restricted Google Maps browser API key so the extension can load Street View without exposing the master key. Mint denials use `403` with `membership_required` or `quota_exceeded`; unauthenticated mint is denied as `401`.
+_Avoid_: shipping the Google API key in Store builds, “each user makes a Google Cloud account” as the product, homemade credentials, per-request GCP key provisioning
+
+**Role**:
+The Access Service label on a rider after Google login. Every successful login gets `base`. Paid Roles come later with Membership.
+_Avoid_: subscription, plan, calling every logged-in rider a “member”
+
+**Membership**:
+Paid entitlement (Patreon-style tiers later). Distinct from free Role `base`. Non-members on `base` can Mint; Membership is for when charging starts and tiers/caps diverge.
+_Avoid_: calling free `base` “membership”; using “member” for every logged-in rider
+
+**Mint**:
+The Access Service handoff that returns a Grant (restricted Maps browser API key plus `expires_at`) after mint-entitlement and Quota checks. Every successful Mint counts against Quota, including remints after expiry. The extension must re-mint after expiry. Wire deny `membership_required` means lacking mint entitlement — not “lacking paid Membership” while free `base` is still entitled.
+_Avoid_: key-rotation API, minting a new GCP key per request, returning the master/unrestricted key, counting “pano-session starts” as the quota unit
+
+**Grant**:
+The time-limited result of a successful Mint: the restricted Maps browser credential and its `expires_at`. Default lifetime is 24 hours (configurable); a Grant may outlive the UTC day whose Quota counted the Mint.
+_Avoid_: homemade credential, master/unrestricted key, treating the raw API key alone as the whole grant
+
+**Quota**:
+A rider’s count of successful Mints (Grants issued) in a UTC calendar day, enforced against a configurable daily cap (default **100** for free Role `base` in #9). Over Quota is denied with `403` `quota_exceeded`. Non-members keep mint entitlement; when charging starts, free `base` gets a lower cap and Membership a higher one — not a hard deny for non-members by default. Hard Maps spend control stays on Google’s side (key restrictions, Cloud quotas/budgets) — not client-reported Street View loads.
+_Avoid_: pano-session starts, extension usage-report metering as the Quota unit, non-UTC “local” days, treating Quota as a direct count of Google Maps billable API calls
 
 **Dev Key Override**:
-A development-only way to supply a Google Maps API key locally when the Access Service is unavailable. Never enabled in Store builds.
-_Avoid_: user-facing “paste your API key” as the Store Phase product
+A development-only Maps credential path for sideload builds when the Access Service is unavailable. The key comes from a gitignored repo-level `.env` and is injected at build time into non-Store artifacts only — never enabled in Store builds.
+_Avoid_: user-facing “paste your API key”, runtime `.env` reads in the browser, shipping override code in Store builds
 
 **Personal Phase**:
 Author sideloading the extension while building; still speaks to the Access Service (or Dev Key Override), not a separate long-term architecture.
 _Avoid_: treating sideload as a different product
 
 **Store Phase**:
-Chrome Web Store (or equivalent) distribution to other riders, with Access Service metering and membership (likely Patreon tiers).
-_Avoid_: indefinitely personal-only, unpaid unlimited Maps usage for the public
+Chrome Web Store (or equivalent) distribution to other riders, with Access Service metering; paid Membership (likely Patreon tiers) when charging starts.
+_Avoid_: indefinitely personal-only, unpaid unlimited Maps usage for the public once charging is on

@@ -1,0 +1,19 @@
+{
+  "name": "strava-streets-access-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Access Service: Google OAuth session + Mint Grants with Quota (issue #9)",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "start": "tsx src/http/server.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}

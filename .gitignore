@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+*.local
+*.log
+.DS_Store
+coverage/
+.scratch/
+learn/
+access-service/node_modules/
