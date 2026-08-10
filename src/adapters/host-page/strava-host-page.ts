@@ -249,9 +249,8 @@ export class StravaHostPage implements HostPage {
       console.info(
         "[Strava Streets] MRE methods (copy):\n" + methods.join("\n"),
       );
-      this.emitMiss(
-        `${payload.error}\n\nMethods (also in console as "[Strava Streets]"):\n${methods.join("\n") || "(none)"}`,
-      );
+      // Rider-facing status stays short; method inventory is console-only.
+      this.emitMiss(payload.error);
     } catch (err) {
       this.emitMiss(
         err instanceof Error ? err.message : "Map coordinate bridge failed",

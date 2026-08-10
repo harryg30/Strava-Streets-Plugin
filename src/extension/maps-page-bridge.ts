@@ -5,6 +5,11 @@
  *
  * Must stay free of chrome.* APIs — those are unavailable in the page world.
  */
+import {
+  ANCHOR_COVERAGE_RADIUS_M,
+  resolveAnchorCoverage,
+} from "./street-view-coverage.js";
+
 (() => {
   const SOURCE = "ssp-page-bridge";
   const REQUEST = "ssp-isolated";
@@ -89,33 +94,43 @@
     const service = svService ?? new google.maps.StreetViewService();
     svService = service;
 
-    const coverage = await new Promise<"covered" | "coverage_gap">((resolve) => {
-      service.getPanorama({ location: point, radius: 50 }, (_data, status) => {
-        resolve(status === "OK" ? "covered" : "coverage_gap");
-      });
+    const resolved = await new Promise<
+      ReturnType<typeof resolveAnchorCoverage>
+    >((resolve) => {
+      service.getPanorama(
+        { location: point, radius: ANCHOR_COVERAGE_RADIUS_M },
+        (data, status) => {
+          resolve(resolveAnchorCoverage(String(status), data));
+        },
+      );
     });
 
-    if (coverage === "coverage_gap") {
+    if (resolved.coverage === "coverage_gap") {
       reply(id, { ok: true, coverage: "coverage_gap" });
       return;
     }
 
+    const common = {
+      pov: { heading: 0, pitch: 0 },
+      zoom: 1,
+      addressControl: false,
+      linksControl: true,
+      panControl: true,
+      enableCloseButton: false,
+      fullscreenControl: false,
+      motionTracking: false,
+      motionTrackingControl: false,
+    };
+
+    // Show the resolved pano — never re-apply the raw click (blank / snap).
     if (!panorama || viewportId !== nextViewportId) {
       panorama = new google.maps.StreetViewPanorama(el, {
-        position: point,
-        pov: { heading: 0, pitch: 0 },
-        zoom: 1,
-        addressControl: false,
-        linksControl: true,
-        panControl: true,
-        enableCloseButton: false,
-        fullscreenControl: false,
-        motionTracking: false,
-        motionTrackingControl: false,
+        ...common,
+        pano: resolved.pano,
       });
       viewportId = nextViewportId;
     } else {
-      panorama.setPosition(point);
+      panorama.setPano(resolved.pano);
     }
 
     reply(id, { ok: true, coverage: "covered" });

@@ -39,8 +39,8 @@ The UI opened from the extension’s Chrome toolbar icon. Holds a master Street 
 _Avoid_: in-page settings panel, Store-facing “paste your API key”
 
 **Coverage Gap**:
-An Anchor Point with no Street View imagery. The Pano Window keeps showing the last successful Pano and tells the rider there is no Street View at this point; the surface should still look alive and working. The notice clears when a covered Anchor Point succeeds.
-_Avoid_: blanking the Pano, auto-snap to nearest imagery
+An Anchor Point with no Street View imagery. The Pano Window keeps showing the last successful Pano and tells the rider there is no Street View at this point; the surface should still look alive and working. The notice clears when a covered Anchor Point succeeds. “Covered” means imagery within a short search of the Anchor, shown as that resolved Pano — not a long pull to the nearest street. Before any successful Pano, a gap may show an empty viewport plus the notice.
+_Avoid_: blanking a prior successful Pano, auto-snap to distant nearest imagery, treating a loose nearby hit then re-applying the raw click coordinate
 
 **Access Service**:
 The project-owned backend that authenticates riders with Google OAuth (every successful login gets role `base`), treats `base` as membership OK for mint (paid Patreon roles later), enforces a per-calendar-day successful-mint quota with a configurable cap, and mints a time-limited grant of the project’s restricted Google Maps browser API key so the extension can load Street View without exposing the master key. Mint denials use `403` with `membership_required` or `quota_exceeded`.

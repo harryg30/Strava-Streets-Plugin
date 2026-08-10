@@ -4,7 +4,9 @@
  * accepting {x,y} as lat/lng, or returning map-center and ignoring the click.
  */
 
-export type LatLng = { lat: number; lng: number };
+import type { LatLng } from "../domain/types.js";
+
+export type { LatLng };
 
 export type ScreenToLatLngResult = {
   ok: boolean;

@@ -40,9 +40,9 @@ Route Builder is **only** `https://www.strava.com/maps/*` — content script and
 |------|------|
 | `src/core/` | Extension application core (Anchor Point, Pano lifecycle, Coverage Gap) |
 | `src/ports/` | Host Page, Credential source, Street View surface, Settings |
-| `src/adapters/` | Strava Host Page, Maps JS surface, Dev Key Override / Store deny, chrome.storage |
-| `src/extension/` | MV3 background, content script, popup |
-| `tests/` | Seam tests with fakes (no Strava DOM / Maps SDK internals) |
+| `src/adapters/` | Strava Host Page, Maps JS surface (isolated-world RPC), Dev Key Override / Store deny, chrome.storage |
+| `src/extension/` | MV3 background, content script, popup; **page-world** injectables (`maps-page-bridge`, `host-mre-bridge`) that cannot use `chrome.*` |
+| `tests/` | Seam tests with fakes (no Strava DOM / Maps SDK internals); unit tests OK for pure helpers |
 | `scripts/build.mjs` | esbuild; injects `.env` key into **dev** builds only |
 
 ## Popup
