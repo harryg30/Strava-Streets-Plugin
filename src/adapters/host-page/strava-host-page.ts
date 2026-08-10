@@ -7,8 +7,22 @@ const ROUTE_BUILDER_PATH = /^\/maps(?:\/|$)/i;
 const MRE_REQUEST = "ssp-mre-isolated";
 const MRE_SOURCE = "ssp-mre-bridge";
 
+/** Ignore Map Click when pointer moved this far (px) — treat as pan/drag. */
+export const MAP_DRAG_THRESHOLD_PX = 5;
+
 export function isRouteBuilderUrl(pathname: string): boolean {
   return ROUTE_BUILDER_PATH.test(pathname);
+}
+
+/** True when down→up movement is large enough to count as a map drag, not a click. */
+export function exceedsDragThreshold(
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  thresholdPx: number = MAP_DRAG_THRESHOLD_PX,
+): boolean {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  return dx * dx + dy * dy >= thresholdPx * thresholdPx;
 }
 
 type MapClickListener = (point: LatLng) => void;
@@ -46,6 +60,8 @@ export class StravaHostPage implements HostPage {
   >();
   private messageHandler: ((event: MessageEvent) => void) | null = null;
   private reqSeq = 0;
+  private pointerDown: { x: number; y: number } | null = null;
+  private dragExceeded = false;
 
   isRouteBuilder(): boolean {
     return isRouteBuilderUrl(window.location.pathname);
@@ -147,9 +163,11 @@ export class StravaHostPage implements HostPage {
     const root = findMapRoot();
     if (!root) return;
     this.mapRoot = root;
+    root.addEventListener("pointerdown", this.onMapPointerDown, true);
+    root.addEventListener("pointermove", this.onMapPointerMove, true);
     root.addEventListener("click", this.onMapDomClick, true);
     this.mapAttached = true;
-    // Start MRE bridge early so addInteractionListener can catch engine clicks.
+    // Warm the bridge; clicks still resolve via screenToLatLng if this fails.
     void this.ensureMreBridge().catch(() => {
       /* miss path still reports via DOM click */
     });
@@ -157,13 +175,47 @@ export class StravaHostPage implements HostPage {
 
   private detachMapRoot(): void {
     if (!this.mapAttached || !this.mapRoot) return;
+    this.mapRoot.removeEventListener("pointerdown", this.onMapPointerDown, true);
+    this.mapRoot.removeEventListener("pointermove", this.onMapPointerMove, true);
     this.mapRoot.removeEventListener("click", this.onMapDomClick, true);
     this.mapRoot = null;
     this.mapAttached = false;
+    this.pointerDown = null;
+    this.dragExceeded = false;
   }
+
+  private onMapPointerDown = (event: PointerEvent): void => {
+    if (event.button !== 0) return;
+    this.pointerDown = { x: event.clientX, y: event.clientY };
+    this.dragExceeded = false;
+  };
+
+  private onMapPointerMove = (event: PointerEvent): void => {
+    if (!this.pointerDown || this.dragExceeded) return;
+    if (
+      exceedsDragThreshold(this.pointerDown, {
+        x: event.clientX,
+        y: event.clientY,
+      })
+    ) {
+      this.dragExceeded = true;
+    }
+  };
 
   private onMapDomClick = (event: MouseEvent): void => {
     if (this.mapListeners.size === 0) return;
+
+    const start = this.pointerDown;
+    const dragged =
+      this.dragExceeded ||
+      (start != null &&
+        exceedsDragThreshold(start, { x: event.clientX, y: event.clientY }));
+
+    this.pointerDown = null;
+    this.dragExceeded = false;
+
+    if (dragged) return;
+
     void this.resolveClick(event);
   };
 
@@ -217,17 +269,6 @@ export class StravaHostPage implements HostPage {
       if (event.source !== window) return;
       const data = event.data as MreResponse | null;
       if (!data || data.source !== MRE_SOURCE) return;
-
-      // Engine-native interaction with coords (preferred Map Click path).
-      if (
-        data.type === "mapInteraction" &&
-        data.point &&
-        typeof data.point.lat === "number" &&
-        typeof data.point.lng === "number"
-      ) {
-        for (const l of this.mapListeners) l(data.point);
-        return;
-      }
 
       if (data.type === "ready") return;
       if (data.id && this.pending.has(data.id)) {

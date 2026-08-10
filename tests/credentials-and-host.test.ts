@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { createCredentialSourceForProfile } from "../src/adapters/credentials/create-credential-source.js";
 import { DeniedCredentialSource } from "../src/adapters/credentials/denied.js";
 import { DevKeyOverrideCredentialSource } from "../src/adapters/credentials/dev-key-override.js";
-import { isRouteBuilderUrl } from "../src/adapters/host-page/strava-host-page.js";
+import {
+  exceedsDragThreshold,
+  isRouteBuilderUrl,
+  MAP_DRAG_THRESHOLD_PX,
+} from "../src/adapters/host-page/strava-host-page.js";
 
 describe("Dev Key Override / credential wiring", () => {
   it("dev profile uses Dev Key Override adapter", () => {
@@ -46,5 +50,25 @@ describe("Route Builder URL detection", () => {
     expect(isRouteBuilderUrl("/routes/new")).toBe(false);
     expect(isRouteBuilderUrl("/routes/12345/edit")).toBe(false);
     expect(isRouteBuilderUrl("/mapping")).toBe(false);
+  });
+});
+
+describe("Map drag vs Map Click", () => {
+  it("treats tiny pointer jitter as a click", () => {
+    expect(
+      exceedsDragThreshold({ x: 100, y: 100 }, { x: 102, y: 101 }),
+    ).toBe(false);
+  });
+
+  it("treats movement at/above threshold as a drag (ignore click)", () => {
+    expect(
+      exceedsDragThreshold(
+        { x: 0, y: 0 },
+        { x: MAP_DRAG_THRESHOLD_PX, y: 0 },
+      ),
+    ).toBe(true);
+    expect(
+      exceedsDragThreshold({ x: 10, y: 10 }, { x: 10, y: 10 + MAP_DRAG_THRESHOLD_PX }),
+    ).toBe(true);
   });
 });
