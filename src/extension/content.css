@@ -1,0 +1,119 @@
+/* Pano Window overlay styles — injected on Strava pages */
+.ssp-pano {
+  position: fixed;
+  z-index: 2147483646;
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  min-height: 200px;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  color: #f2f2f2;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.ssp-pano__chrome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #242424;
+  border-bottom: 1px solid #3a3a3a;
+  user-select: none;
+  flex: 0 0 auto;
+}
+
+.ssp-pano__title {
+  flex: 1;
+  cursor: grab;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ssp-pano__title:active {
+  cursor: grabbing;
+}
+
+.ssp-pano__close {
+  border: none;
+  background: transparent;
+  color: #ccc;
+  font-size: 18px;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.ssp-pano__close:hover {
+  background: #3a3a3a;
+  color: #fff;
+}
+
+.ssp-pano__body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ssp-pano__viewport {
+  position: absolute;
+  inset: 0;
+  background: #111;
+}
+
+.ssp-pano__notice,
+.ssp-pano__status {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  z-index: 2;
+  padding: 8px 10px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.ssp-pano__notice {
+  top: 10px;
+  background: rgba(20, 20, 20, 0.88);
+  border: 1px solid #c45c26;
+  color: #ffe8d6;
+  font-weight: 600;
+}
+
+.ssp-pano__status {
+  bottom: 10px;
+  background: rgba(20, 20, 20, 0.92);
+  border: 1px solid #666;
+  color: #ddd;
+  max-height: 40%;
+  overflow: auto;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ssp-pano__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  background: linear-gradient(
+    135deg,
+    transparent 50%,
+    #666 50%,
+    #666 60%,
+    transparent 60%,
+    transparent 75%,
+    #666 75%
+  );
+}
