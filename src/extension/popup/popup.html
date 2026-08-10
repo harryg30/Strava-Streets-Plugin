@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Strava Streets</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="brand">
+      <h1>Strava Streets</h1>
+      <p class="tagline">Street View on Route Builder</p>
+    </header>
+
+    <section class="controls" aria-label="Feature controls">
+      <label class="row">
+        <span>Street View / Pano</span>
+        <input type="checkbox" id="feature-enabled" />
+      </label>
+      <label class="row">
+        <span>Tip Follow</span>
+        <input type="checkbox" id="tip-follow" />
+      </label>
+      <p class="hint" id="tip-follow-hint">
+        Tip Follow is saved here; tracking wires up in a later update.
+      </p>
+    </section>
+
+    <section class="account" aria-label="Account">
+      <div class="row">
+        <span>Account</span>
+        <span id="account-status" class="muted">Not connected</span>
+      </div>
+    </section>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
