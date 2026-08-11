@@ -17,12 +17,21 @@
         <span>Street View / Pano</span>
         <input type="checkbox" id="feature-enabled" />
       </label>
-      <label class="row">
-        <span>Tip Follow</span>
-        <input type="checkbox" id="tip-follow" />
-      </label>
-      <p class="hint" id="tip-follow-hint">
-        Tip Follow is saved here; tracking wires up in a later update.
+      <fieldset class="row map-click-button">
+        <legend>Set Anchor with</legend>
+        <div class="segmented" role="radiogroup" aria-label="Map Click Button">
+          <label>
+            <input type="radio" name="map-click-button" value="left" id="map-click-left" />
+            Left click
+          </label>
+          <label>
+            <input type="radio" name="map-click-button" value="right" id="map-click-right" checked />
+            Right click
+          </label>
+        </div>
+      </fieldset>
+      <p class="hint">
+        Left click still draws the route on Strava. Choose which button moves the Pano.
       </p>
     </section>
 

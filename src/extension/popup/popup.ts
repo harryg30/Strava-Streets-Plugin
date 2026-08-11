@@ -1,4 +1,4 @@
-import type { BuildProfile } from "../../domain/types.js";
+import type { BuildProfile, MapClickButton } from "../../domain/types.js";
 import { ChromeSettingsStore } from "../../adapters/settings/chrome-settings-store.js";
 
 declare const __BUILD_PROFILE__: BuildProfile;
@@ -8,16 +8,25 @@ const settings = new ChromeSettingsStore();
 const featureEl = document.getElementById(
   "feature-enabled",
 ) as HTMLInputElement | null;
-const tipFollowEl = document.getElementById(
-  "tip-follow",
+const leftEl = document.getElementById(
+  "map-click-left",
+) as HTMLInputElement | null;
+const rightEl = document.getElementById(
+  "map-click-right",
 ) as HTMLInputElement | null;
 const accountEl = document.getElementById("account-status");
 
+function applyMapClickButton(button: MapClickButton): void {
+  if (!leftEl || !rightEl) return;
+  leftEl.checked = button === "left";
+  rightEl.checked = button === "right";
+}
+
 async function hydrate(): Promise<void> {
-  if (!featureEl || !tipFollowEl || !accountEl) return;
+  if (!featureEl || !leftEl || !rightEl || !accountEl) return;
 
   featureEl.checked = await settings.getFeatureEnabled();
-  tipFollowEl.checked = await settings.getTipFollowEnabled();
+  applyMapClickButton(await settings.getMapClickButton());
 
   accountEl.textContent =
     __BUILD_PROFILE__ === "dev" ? "Dev build" : "Not connected";
@@ -26,10 +35,12 @@ async function hydrate(): Promise<void> {
     void settings.setFeatureEnabled(featureEl.checked);
   });
 
-  tipFollowEl.addEventListener("change", () => {
-    // Persisted only — Tip Follow Host Page behavior lands in #10.
-    void settings.setTipFollowEnabled(tipFollowEl.checked);
-  });
+  const onButtonChange = () => {
+    const button: MapClickButton = rightEl.checked ? "right" : "left";
+    void settings.setMapClickButton(button);
+  };
+  leftEl.addEventListener("change", onButtonChange);
+  rightEl.addEventListener("change", onButtonChange);
 }
 
 void hydrate();

@@ -211,11 +211,44 @@ describe("ExtensionApplication seams", () => {
     expect(streetView.blanked).toBe(false);
   });
 
-  it("Tip Follow setting is readable/persisted (behavior no-op until #10)", async () => {
-    expect(await settings.getTipFollowEnabled()).toBe(true);
-    await settings.setTipFollowEnabled(false);
-    expect(await settings.getTipFollowEnabled()).toBe(false);
-    // Core does not subscribe to tip signals — Host Page fake has none.
+  it("Map Click Button defaults to right", async () => {
+    expect(await settings.getMapClickButton()).toBe("right");
+    expect(app.getState().mapClickButton).toBe("right");
+    expect(host.mapClickButton).toBe("right");
+  });
+
+  it("left Map Click Button: left click moves Anchor; right click ignored", async () => {
+    host.setRouteBuilder(true);
+    await flush();
+
+    await settings.setMapClickButton("left");
+    await flush();
+    expect(app.getState().mapClickButton).toBe("left");
+    expect(host.mapClickButton).toBe("left");
+
+    host.emitMapClick({ lat: 9, lng: 9 }, "right");
+    await flush();
+    expect(streetView.shownAnchors).toHaveLength(0);
+
+    const point = { lat: 40.1, lng: -73.9 };
+    host.emitMapClick(point, "left");
+    await flush();
+    expect(streetView.shownAnchors).toEqual([point]);
+  });
+
+  it("right Map Click Button: right click moves Anchor; left click ignored", async () => {
+    host.setRouteBuilder(true);
+    await flush();
+    expect(app.getState().mapClickButton).toBe("right");
+
+    host.emitMapClick({ lat: 1, lng: 1 }, "left");
+    await flush();
+    expect(streetView.shownAnchors).toHaveLength(0);
+
+    const point = { lat: 2, lng: 2 };
+    host.emitMapClick(point, "right");
+    await flush();
+    expect(streetView.shownAnchors).toEqual([point]);
   });
 });
 

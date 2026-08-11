@@ -1,4 +1,5 @@
 import type { LatLng } from "../../domain/types.js";
+import type { MapClickButton } from "../../domain/types.js";
 import type { HostPage } from "../../ports/index.js";
 
 /** Product host: https://www.strava.com/maps/* only. */
@@ -25,7 +26,37 @@ export function exceedsDragThreshold(
   return dx * dx + dy * dy >= thresholdPx * thresholdPx;
 }
 
-type MapClickListener = (point: LatLng) => void;
+export type PointerGestureState = {
+  pointerDown: { x: number; y: number; button: MapClickButton } | null;
+  dragExceeded: boolean;
+};
+
+/**
+ * Clears pointer tracking after a click/contextmenu.
+ * Returns whether the gesture was a drag (caller should ignore the click).
+ */
+export function finishPointerGestureState(
+  state: PointerGestureState,
+  clientX: number,
+  clientY: number,
+  options?: { requireButton?: MapClickButton },
+): { dragged: boolean; next: PointerGestureState } {
+  const start = state.pointerDown;
+  const buttonOk =
+    options?.requireButton === undefined ||
+    start?.button === options.requireButton;
+  const dragged =
+    state.dragExceeded ||
+    (start != null &&
+      buttonOk &&
+      exceedsDragThreshold(start, { x: clientX, y: clientY }));
+  return {
+    dragged,
+    next: { pointerDown: null, dragExceeded: false },
+  };
+}
+
+type MapClickListener = (point: LatLng, button: MapClickButton) => void;
 type MapClickMissListener = (reason: string) => void;
 type RouteBuilderListener = (active: boolean) => void;
 
@@ -42,7 +73,8 @@ type MreResponse = {
 
 /**
  * Strava Host Page adapter.
- * Map Click → lat/lng via Leaflet (legacy) or MRE/FATMAP terrainEngine (page bridge).
+ * Map Click (left or right) → lat/lng via Leaflet or MRE/FATMAP terrainEngine.
+ * Never uses camera.addInteractionListener (breaks Route Builder tools).
  */
 export class StravaHostPage implements HostPage {
   private readonly routeListeners = new Set<RouteBuilderListener>();
@@ -60,11 +92,17 @@ export class StravaHostPage implements HostPage {
   >();
   private messageHandler: ((event: MessageEvent) => void) | null = null;
   private reqSeq = 0;
-  private pointerDown: { x: number; y: number } | null = null;
+  private pointerDown: { x: number; y: number; button: MapClickButton } | null =
+    null;
   private dragExceeded = false;
+  private mapClickButton: MapClickButton = "right";
 
   isRouteBuilder(): boolean {
     return isRouteBuilderUrl(window.location.pathname);
+  }
+
+  setMapClickButton(button: MapClickButton): void {
+    this.mapClickButton = button;
   }
 
   onRouteBuilderChange(listener: RouteBuilderListener): () => void {
@@ -123,7 +161,6 @@ export class StravaHostPage implements HostPage {
     this.mutationObserver = new MutationObserver(() => {
       this.emitRouteBuilderIfChanged();
       if (this.isRouteBuilder() && this.mapListeners.size > 0) {
-        // Allow re-attach if canvas appeared after a failed attempt.
         if (!this.mapAttached) this.attachMapRoot();
       }
     });
@@ -166,8 +203,8 @@ export class StravaHostPage implements HostPage {
     root.addEventListener("pointerdown", this.onMapPointerDown, true);
     root.addEventListener("pointermove", this.onMapPointerMove, true);
     root.addEventListener("click", this.onMapDomClick, true);
+    root.addEventListener("contextmenu", this.onMapContextMenu, true);
     this.mapAttached = true;
-    // Warm the bridge; clicks still resolve via screenToLatLng if this fails.
     void this.ensureMreBridge().catch(() => {
       /* miss path still reports via DOM click */
     });
@@ -178,6 +215,7 @@ export class StravaHostPage implements HostPage {
     this.mapRoot.removeEventListener("pointerdown", this.onMapPointerDown, true);
     this.mapRoot.removeEventListener("pointermove", this.onMapPointerMove, true);
     this.mapRoot.removeEventListener("click", this.onMapDomClick, true);
+    this.mapRoot.removeEventListener("contextmenu", this.onMapContextMenu, true);
     this.mapRoot = null;
     this.mapAttached = false;
     this.pointerDown = null;
@@ -185,8 +223,9 @@ export class StravaHostPage implements HostPage {
   }
 
   private onMapPointerDown = (event: PointerEvent): void => {
-    if (event.button !== 0) return;
-    this.pointerDown = { x: event.clientX, y: event.clientY };
+    const button = pointerButtonToMapClick(event.button);
+    if (!button) return;
+    this.pointerDown = { x: event.clientX, y: event.clientY, button };
     this.dragExceeded = false;
   };
 
@@ -204,25 +243,61 @@ export class StravaHostPage implements HostPage {
 
   private onMapDomClick = (event: MouseEvent): void => {
     if (this.mapListeners.size === 0) return;
-
-    const start = this.pointerDown;
-    const dragged =
-      this.dragExceeded ||
-      (start != null &&
-        exceedsDragThreshold(start, { x: event.clientX, y: event.clientY }));
-
-    this.pointerDown = null;
-    this.dragExceeded = false;
-
-    if (dragged) return;
-
-    void this.resolveClick(event);
+    if (this.finishPointerGesture(event.clientX, event.clientY)) return;
+    void this.resolveClick(event, "left");
   };
 
-  private async resolveClick(event: MouseEvent): Promise<void> {
+  private onMapContextMenu = (event: MouseEvent): void => {
+    if (this.mapListeners.size === 0) return;
+    // Only consume right-click when it is the active Map Click Button.
+    // Always clear gesture state so a discarded right-click cannot poison
+    // the next left click as a drag (e.g. Map Click Button = left).
+    if (this.mapClickButton !== "right") {
+      this.pointerDown = null;
+      this.dragExceeded = false;
+      return;
+    }
+
+    if (
+      this.finishPointerGesture(event.clientX, event.clientY, {
+        requireButton: "right",
+      })
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    void this.resolveClick(event, "right");
+  };
+
+  /** Clears pointer tracking; returns true when the gesture was a drag (ignore click). */
+  private finishPointerGesture(
+    clientX: number,
+    clientY: number,
+    options?: { requireButton?: MapClickButton },
+  ): boolean {
+    const { dragged, next } = finishPointerGestureState(
+      {
+        pointerDown: this.pointerDown,
+        dragExceeded: this.dragExceeded,
+      },
+      clientX,
+      clientY,
+      options,
+    );
+    this.pointerDown = next.pointerDown;
+    this.dragExceeded = next.dragExceeded;
+    return dragged;
+  }
+
+  private async resolveClick(
+    event: MouseEvent,
+    button: MapClickButton,
+  ): Promise<void> {
     const leafletPoint = latLngFromLeaflet(event, this.mapRoot);
     if (leafletPoint) {
-      for (const l of this.mapListeners) l(leafletPoint);
+      for (const l of this.mapListeners) l(leafletPoint, button);
       return;
     }
 
@@ -234,7 +309,7 @@ export class StravaHostPage implements HostPage {
         clientY: event.clientY,
       });
       if (response.ok && response.point) {
-        for (const l of this.mapListeners) l(response.point);
+        for (const l of this.mapListeners) l(response.point, button);
         return;
       }
       const methods = response.methods ?? [];
@@ -244,12 +319,10 @@ export class StravaHostPage implements HostPage {
         methods,
         tried,
       };
-      // DevTools-friendly copy target (right-click → Copy object / expand).
       console.info("[Strava Streets] MRE screen→lat/lng miss", payload);
       console.info(
         "[Strava Streets] MRE methods (copy):\n" + methods.join("\n"),
       );
-      // Rider-facing status stays short; method inventory is console-only.
       this.emitMiss(payload.error);
     } catch (err) {
       this.emitMiss(
@@ -285,11 +358,14 @@ export class StravaHostPage implements HostPage {
 
     this.bridgeReady = new Promise((resolve, reject) => {
       let settled = false;
+      // Must declare before finish() — early-return path calls finish when the
+      // bridge <script> already exists (e.g. after extension reload on same tab).
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const finish = (err?: Error) => {
         if (settled) return;
         settled = true;
         window.removeEventListener("message", onReady);
-        window.clearTimeout(timer);
+        if (timer !== undefined) window.clearTimeout(timer);
         if (err) {
           this.bridgeReady = null;
           reject(err);
@@ -327,7 +403,7 @@ export class StravaHostPage implements HostPage {
         return;
       }
 
-      const timer = window.setTimeout(() => {
+      timer = window.setTimeout(() => {
         finish(new Error("Timed out waiting for MRE host bridge"));
       }, 5000);
     });
@@ -355,6 +431,12 @@ export class StravaHostPage implements HostPage {
       window.postMessage({ source: MRE_REQUEST, id, ...payload }, "*");
     });
   }
+}
+
+function pointerButtonToMapClick(button: number): MapClickButton | null {
+  if (button === 0) return "left";
+  if (button === 2) return "right";
+  return null;
 }
 
 function findMapRoot(): HTMLElement | null {

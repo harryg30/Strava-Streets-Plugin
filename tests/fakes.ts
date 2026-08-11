@@ -2,6 +2,7 @@ import type {
   CoverageStatus,
   CredentialResult,
   LatLng,
+  MapClickButton,
   PanoLayout,
   StreetViewCredential,
 } from "../src/domain/types.js";
@@ -28,8 +29,11 @@ export class FakeCredentialSource implements CredentialSource {
 export class FakeHostPage implements HostPage {
   private routeBuilder = false;
   private routeListeners = new Set<(active: boolean) => void>();
-  private mapListeners = new Set<(point: LatLng) => void>();
+  private mapListeners = new Set<
+    (point: LatLng, button: MapClickButton) => void
+  >();
   mapClickSubscriptionCount = 0;
+  mapClickButton: MapClickButton = "right";
 
   setRouteBuilder(active: boolean): void {
     if (this.routeBuilder === active) return;
@@ -37,8 +41,12 @@ export class FakeHostPage implements HostPage {
     for (const l of this.routeListeners) l(active);
   }
 
-  emitMapClick(point: LatLng): void {
-    for (const l of this.mapListeners) l(point);
+  emitMapClick(point: LatLng, button: MapClickButton = "right"): void {
+    for (const l of this.mapListeners) l(point, button);
+  }
+
+  setMapClickButton(button: MapClickButton): void {
+    this.mapClickButton = button;
   }
 
   isRouteBuilder(): boolean {
@@ -51,7 +59,9 @@ export class FakeHostPage implements HostPage {
     return () => this.routeListeners.delete(listener);
   }
 
-  onMapClick(listener: (point: LatLng) => void): () => void {
+  onMapClick(
+    listener: (point: LatLng, button: MapClickButton) => void,
+  ): () => void {
     this.mapListeners.add(listener);
     this.mapClickSubscriptionCount += 1;
     return () => {
@@ -146,7 +156,7 @@ export class FakeStreetViewSurface implements StreetViewSurface {
 
 export class FakeSettingsStore implements SettingsStore {
   featureEnabled = true;
-  tipFollowEnabled = true;
+  mapClickButton: MapClickButton = "right";
   panoLayout: PanoLayout | null = null;
   private listeners = new Set<() => void>();
 
@@ -159,12 +169,12 @@ export class FakeSettingsStore implements SettingsStore {
     this.notify();
   }
 
-  async getTipFollowEnabled(): Promise<boolean> {
-    return this.tipFollowEnabled;
+  async getMapClickButton(): Promise<MapClickButton> {
+    return this.mapClickButton;
   }
 
-  async setTipFollowEnabled(enabled: boolean): Promise<void> {
-    this.tipFollowEnabled = enabled;
+  async setMapClickButton(button: MapClickButton): Promise<void> {
+    this.mapClickButton = button;
     this.notify();
   }
 

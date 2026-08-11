@@ -19,23 +19,19 @@ The street-level 360° Street View image shown in the Pano Window for the curren
 _Avoid_: basemap, satellite, Google Maps (as the whole product)
 
 **Anchor Point**:
-The map location that determines which Pano is shown. Updated by Map Click, or by Tip Follow while drawing.
+The map location that determines which Pano is shown. Updated by Map Click.
 _Avoid_: waypoint, GPS fix
 
 **Map Click**:
-A click on the Route Builder map that sets the Anchor Point.
-_Avoid_: map hover-follow
+A click on the Route Builder map that sets the Anchor Point. The rider chooses Left or Right in the Extension Popup (default Right). Only the chosen button moves the Anchor; the other does not. Left click still places/extends the route on Strava when Strava handles it.
+_Avoid_: map hover-follow, Tip Follow, always tracking the route tip
 
-**Route Tip**:
-The leading end of the route currently being drawn on the Route Builder.
-_Avoid_: start point, saved route endpoint (unless drawing from there)
-
-**Tip Follow**:
-A mode (toggle in the Extension Popup, default on) that sets the Anchor Point from the Route Tip while the user is actively extending the route. When Tip Follow is off, or the user is idle (not placing), the Anchor Point stays put until a Map Click.
-_Avoid_: always-track-selection, hover-follow
+**Map Click Button**:
+The Extension Popup choice of which mouse button performs Map Click: `left` or `right` (default `right`).
+_Avoid_: Tip Follow toggle, modifier-key chords
 
 **Extension Popup**:
-The UI opened from the extension’s Chrome toolbar icon. Holds a master Street View / Pano on/off, Tip Follow on/off (default on), and an account row (placeholder until Access Service / membership is wired). Not a home for pasting a Google API key.
+The UI opened from the extension’s Chrome toolbar icon. Holds a master Street View / Pano on/off, Map Click Button (Left / Right), and an account row (placeholder until Access Service / membership is wired). Not a home for pasting a Google API key.
 _Avoid_: in-page settings panel, Store-facing “paste your API key”
 
 **Coverage Gap**:
