@@ -25,9 +25,20 @@ describe("Access", () => {
   }
 
   it("login assigns Role base and returns a Session", async () => {
-    const { access } = accessWith();
+    const { createMemorySessionStore } = await import(
+      "../src/stores/memory-session-store.js"
+    );
+    const sessionStore = createMemorySessionStore();
+    const { access } = createAccess(
+      { restrictedMapsBrowserKey: restrictedKey },
+      { sessionStore },
+    );
     const session = await access.login({ googleAccountId: "google-user-1" });
     expect(session.sessionId.length).toBeGreaterThan(0);
+    expect(await sessionStore.getRider("google-user-1")).toEqual({
+      googleAccountId: "google-user-1",
+      role: "base",
+    });
   });
 
   it("mint returns a Grant with the restricted key and expires_at", async () => {

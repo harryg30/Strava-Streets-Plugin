@@ -29,7 +29,8 @@ function nextUtcMidnight(d: Date): Date {
 }
 
 function hasMintEntitlement(role: "base"): boolean {
-  // #9: Role `base` is mint-entitled. membership_required = lacking entitlement.
+  // #9: only Role `base` exists and it is mint-entitled.
+  // #12 may add paid Roles; membership_required = lacking mint entitlement (not “lacking paid Membership”).
   return role === "base";
 }
 

@@ -1,11 +1,12 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { describe, expect, it } from "vitest";
-import { createAccess } from "../src/access/create-access.js";
+import { describe, expect, it, vi } from "vitest";
+import type { Access, Session } from "../src/access/types.js";
 import {
   createHttpApp,
   SESSION_COOKIE,
   type GoogleOAuthPort,
 } from "../src/http/create-http-app.js";
+import { createDevOAuthStandIn } from "../src/http/dev-oauth-stand-in.js";
 
 type TestResponse = {
   status: number;
@@ -52,15 +53,6 @@ async function request(
   return { status: res.status, headers: res.headers, json, text };
 }
 
-function fakeOAuth(): GoogleOAuthPort {
-  return {
-    async exchangeCode(code) {
-      // Test Adapter: authorization code stands in for googleAccountId.
-      return { googleAccountId: code };
-    },
-  };
-}
-
 function cookieFrom(res: TestResponse): string | null {
   const raw = res.headers.getSetCookie?.() ?? [];
   const line = raw.find((c) => c.startsWith(`${SESSION_COOKIE}=`));
@@ -68,27 +60,28 @@ function cookieFrom(res: TestResponse): string | null {
   return line.split(";")[0]!;
 }
 
-describe("HTTP Adapter", () => {
-  const restrictedKey = "maps-browser-restricted-test-key";
+function stubAccess(overrides: Partial<Access> = {}): Access {
+  return {
+    login: vi.fn(async () => ({ sessionId: "session-from-stub" })),
+    mint: vi.fn(async () => ({
+      ok: false as const,
+      denial: { kind: "unauthenticated" as const },
+    })),
+    ...overrides,
+  };
+}
 
-  it("unauthenticated mint is 401", async () => {
-    const { access } = createAccess({
-      restrictedMapsBrowserKey: restrictedKey,
-    });
-    const { handler } = createHttpApp(access, fakeOAuth());
-    await withServer(handler, async (base) => {
-      const res = await request(base, "/v1/credentials/mint", { method: "POST" });
-      expect(res.status).toBe(401);
-    });
-  });
-
-  it("OAuth callback then mint returns Grant", async () => {
-    const { access } = createAccess({
-      restrictedMapsBrowserKey: restrictedKey,
-      clock: () => new Date("2026-08-10T12:00:00.000Z"),
-      grantTtlMs: 24 * 60 * 60 * 1000,
-    });
-    const { handler } = createHttpApp(access, fakeOAuth());
+describe("HTTP Adapter (transport mapping)", () => {
+  it("OAuth callback exchanges code, calls login, sets session cookie", async () => {
+    const access = stubAccess();
+    const oauth: GoogleOAuthPort = {
+      exchangeCode: vi.fn(async (code, redirectUri) => {
+        expect(code).toBe("google-user-1");
+        expect(redirectUri).toBe("http://localhost/callback");
+        return { googleAccountId: "google-user-1" };
+      }),
+    };
+    const { handler } = createHttpApp(access, oauth);
     await withServer(handler, async (base) => {
       const login = await request(base, "/v1/auth/google/callback", {
         method: "POST",
@@ -99,51 +92,88 @@ describe("HTTP Adapter", () => {
         }),
       });
       expect(login.status).toBe(200);
-      const cookie = cookieFrom(login);
-      expect(cookie).toBeTruthy();
+      expect(login.json).toEqual({ ok: true });
+      expect(cookieFrom(login)).toBe(`${SESSION_COOKIE}=session-from-stub`);
+      expect(access.login).toHaveBeenCalledWith({
+        googleAccountId: "google-user-1",
+      });
+      expect(oauth.exchangeCode).toHaveBeenCalledOnce();
+    });
+  });
 
+  it("unauthenticated mint maps to 401", async () => {
+    const access = stubAccess({
+      mint: vi.fn(async () => ({
+        ok: false as const,
+        denial: { kind: "unauthenticated" as const },
+      })),
+    });
+    const { handler } = createHttpApp(access, createDevOAuthStandIn());
+    await withServer(handler, async (base) => {
+      const res = await request(base, "/v1/credentials/mint", { method: "POST" });
+      expect(res.status).toBe(401);
+      expect(access.mint).toHaveBeenCalledWith(null);
+    });
+  });
+
+  it("successful mint maps Grant to 200 credential + expires_at", async () => {
+    const expiresAt = new Date("2026-08-11T12:00:00.000Z");
+    const access = stubAccess({
+      mint: vi.fn(async (session: Session | null) => {
+        expect(session).toEqual({ sessionId: "sess-1" });
+        return {
+          ok: true as const,
+          grant: { apiKey: "maps-browser-restricted-test-key", expiresAt },
+        };
+      }),
+    });
+    const { handler } = createHttpApp(access, createDevOAuthStandIn());
+    await withServer(handler, async (base) => {
       const mint = await request(base, "/v1/credentials/mint", {
         method: "POST",
-        headers: { cookie: cookie! },
+        headers: { cookie: `${SESSION_COOKIE}=sess-1` },
       });
       expect(mint.status).toBe(200);
       expect(mint.json).toEqual({
-        credential: restrictedKey,
+        credential: "maps-browser-restricted-test-key",
         expires_at: "2026-08-11T12:00:00.000Z",
       });
     });
   });
 
-  it("over Quota is 403 quota_exceeded", async () => {
-    const { access } = createAccess({
-      restrictedMapsBrowserKey: restrictedKey,
-      dailyMintCapByRole: { base: 1 },
-      clock: () => new Date("2026-08-10T12:00:00.000Z"),
+  it("membership_required maps to 403", async () => {
+    const access = stubAccess({
+      mint: vi.fn(async () => ({
+        ok: false as const,
+        denial: { kind: "membership_required" as const },
+      })),
     });
-    const { handler } = createHttpApp(access, fakeOAuth());
+    const { handler } = createHttpApp(access, createDevOAuthStandIn());
     await withServer(handler, async (base) => {
-      const login = await request(base, "/v1/auth/google/callback", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          code: "google-user-1",
-          redirect_uri: "http://localhost/callback",
-        }),
-      });
-      const cookie = cookieFrom(login)!;
-
-      expect(
-        (
-          await request(base, "/v1/credentials/mint", {
-            method: "POST",
-            headers: { cookie },
-          })
-        ).status,
-      ).toBe(200);
-
       const denied = await request(base, "/v1/credentials/mint", {
         method: "POST",
-        headers: { cookie },
+        headers: { cookie: `${SESSION_COOKIE}=orphan` },
+      });
+      expect(denied.status).toBe(403);
+      expect(denied.json).toEqual({ error: "membership_required" });
+    });
+  });
+
+  it("quota_exceeded maps to 403", async () => {
+    const access = stubAccess({
+      mint: vi.fn(async () => ({
+        ok: false as const,
+        denial: {
+          kind: "quota_exceeded" as const,
+          resetAt: new Date("2026-08-11T00:00:00.000Z"),
+        },
+      })),
+    });
+    const { handler } = createHttpApp(access, createDevOAuthStandIn());
+    await withServer(handler, async (base) => {
+      const denied = await request(base, "/v1/credentials/mint", {
+        method: "POST",
+        headers: { cookie: `${SESSION_COOKIE}=sess-1` },
       });
       expect(denied.status).toBe(403);
       expect(denied.json).toEqual({ error: "quota_exceeded" });
