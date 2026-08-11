@@ -1,12 +1,13 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import type { Access, Session } from "../src/access/types.js";
+import { createFakeGoogleAuth } from "../src/google-auth/create-fake-google-auth.js";
+import type { GoogleAuth } from "../src/google-auth/types.js";
 import {
   createHttpApp,
+  OAUTH_STATE_COOKIE,
   SESSION_COOKIE,
-  type GoogleOAuthPort,
 } from "../src/http/create-http-app.js";
-import { createDevOAuthStandIn } from "../src/http/dev-oauth-stand-in.js";
 
 type TestResponse = {
   status: number;
@@ -53,9 +54,9 @@ async function request(
   return { status: res.status, headers: res.headers, json, text };
 }
 
-function cookieFrom(res: TestResponse): string | null {
+function cookieFrom(res: TestResponse, name: string): string | null {
   const raw = res.headers.getSetCookie?.() ?? [];
-  const line = raw.find((c) => c.startsWith(`${SESSION_COOKIE}=`));
+  const line = raw.find((c) => c.startsWith(`${name}=`));
   if (!line) return null;
   return line.split(";")[0]!;
 }
@@ -72,32 +73,90 @@ function stubAccess(overrides: Partial<Access> = {}): Access {
 }
 
 describe("HTTP Adapter (transport mapping)", () => {
-  it("OAuth callback exchanges code, calls login, sets session cookie", async () => {
+  it("GET start redirects to authorizeUrl and sets oauth_state cookie", async () => {
     const access = stubAccess();
-    const oauth: GoogleOAuthPort = {
-      exchangeCode: vi.fn(async (code, redirectUri) => {
-        expect(code).toBe("google-user-1");
-        expect(redirectUri).toBe("http://localhost/callback");
+    const googleAuth: GoogleAuth = {
+      begin: vi.fn(() => ({
+        authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth?x=1",
+        state: "state-abc",
+      })),
+      complete: vi.fn(),
+    };
+    const { handler } = createHttpApp(access, googleAuth, {
+      publicOrigin: "http://access.test",
+    });
+    await withServer(handler, async (base) => {
+      const res = await request(base, "/v1/auth/google/start", {
+        redirect: "manual",
+      });
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe(
+        "https://accounts.google.com/o/oauth2/v2/auth?x=1",
+      );
+      expect(cookieFrom(res, OAUTH_STATE_COOKIE)).toBe(
+        `${OAUTH_STATE_COOKIE}=state-abc`,
+      );
+      expect(googleAuth.begin).toHaveBeenCalledWith(
+        "http://access.test/v1/auth/google/callback",
+      );
+    });
+  });
+
+  it("GET callback completes OAuth, calls login, sets session cookie", async () => {
+    const access = stubAccess();
+    const googleAuth: GoogleAuth = {
+      begin: vi.fn(),
+      complete: vi.fn(async (input) => {
+        expect(input).toEqual({
+          code: "auth-code",
+          state: "state-abc",
+          redirectUri: "http://access.test/v1/auth/google/callback",
+        });
         return { googleAccountId: "google-user-1" };
       }),
     };
-    const { handler } = createHttpApp(access, oauth);
+    const { handler } = createHttpApp(access, googleAuth, {
+      publicOrigin: "http://access.test",
+    });
+    await withServer(handler, async (base) => {
+      const login = await request(
+        base,
+        "/v1/auth/google/callback?code=auth-code&state=state-abc",
+        {
+          headers: { cookie: `${OAUTH_STATE_COOKIE}=state-abc` },
+        },
+      );
+      expect(login.status).toBe(200);
+      expect(login.json).toEqual({ ok: true });
+      expect(cookieFrom(login, SESSION_COOKIE)).toBe(
+        `${SESSION_COOKIE}=session-from-stub`,
+      );
+      expect(access.login).toHaveBeenCalledWith({
+        googleAccountId: "google-user-1",
+      });
+      expect(googleAuth.complete).toHaveBeenCalledOnce();
+    });
+  });
+
+  it("POST callback accepts code + state (extension-friendly)", async () => {
+    const access = stubAccess();
+    const auth = createFakeGoogleAuth({ bounceCode: "posted-user" });
+    const { state } = auth.begin(
+      "http://access.test/v1/auth/google/callback",
+    );
+    const { handler } = createHttpApp(access, auth, {
+      publicOrigin: "http://access.test",
+    });
     await withServer(handler, async (base) => {
       const login = await request(base, "/v1/auth/google/callback", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          code: "google-user-1",
-          redirect_uri: "http://localhost/callback",
-        }),
+        body: JSON.stringify({ code: "posted-user", state }),
       });
       expect(login.status).toBe(200);
-      expect(login.json).toEqual({ ok: true });
-      expect(cookieFrom(login)).toBe(`${SESSION_COOKIE}=session-from-stub`);
       expect(access.login).toHaveBeenCalledWith({
-        googleAccountId: "google-user-1",
+        googleAccountId: "posted-user",
       });
-      expect(oauth.exchangeCode).toHaveBeenCalledOnce();
     });
   });
 
@@ -108,7 +167,9 @@ describe("HTTP Adapter (transport mapping)", () => {
         denial: { kind: "unauthenticated" as const },
       })),
     });
-    const { handler } = createHttpApp(access, createDevOAuthStandIn());
+    const { handler } = createHttpApp(access, createFakeGoogleAuth(), {
+      publicOrigin: "http://access.test",
+    });
     await withServer(handler, async (base) => {
       const res = await request(base, "/v1/credentials/mint", { method: "POST" });
       expect(res.status).toBe(401);
@@ -127,7 +188,9 @@ describe("HTTP Adapter (transport mapping)", () => {
         };
       }),
     });
-    const { handler } = createHttpApp(access, createDevOAuthStandIn());
+    const { handler } = createHttpApp(access, createFakeGoogleAuth(), {
+      publicOrigin: "http://access.test",
+    });
     await withServer(handler, async (base) => {
       const mint = await request(base, "/v1/credentials/mint", {
         method: "POST",
@@ -148,7 +211,9 @@ describe("HTTP Adapter (transport mapping)", () => {
         denial: { kind: "membership_required" as const },
       })),
     });
-    const { handler } = createHttpApp(access, createDevOAuthStandIn());
+    const { handler } = createHttpApp(access, createFakeGoogleAuth(), {
+      publicOrigin: "http://access.test",
+    });
     await withServer(handler, async (base) => {
       const denied = await request(base, "/v1/credentials/mint", {
         method: "POST",
@@ -169,7 +234,9 @@ describe("HTTP Adapter (transport mapping)", () => {
         },
       })),
     });
-    const { handler } = createHttpApp(access, createDevOAuthStandIn());
+    const { handler } = createHttpApp(access, createFakeGoogleAuth(), {
+      publicOrigin: "http://access.test",
+    });
     await withServer(handler, async (base) => {
       const denied = await request(base, "/v1/credentials/mint", {
         method: "POST",
