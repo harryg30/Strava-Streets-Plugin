@@ -1,18 +1,22 @@
 import { DEFAULT_PANO_LAYOUT } from "../../domain/types.js";
-import type { PanoLayout } from "../../domain/types.js";
+import type { MapClickButton, PanoLayout } from "../../domain/types.js";
 import type { SettingsStore } from "../../ports/index.js";
 
 const KEYS = {
   featureEnabled: "ssp.featureEnabled",
-  tipFollowEnabled: "ssp.tipFollowEnabled",
+  mapClickButton: "ssp.mapClickButton",
   panoLayout: "ssp.panoLayout",
 } as const;
 
 type ChangeListener = () => void;
 
+function parseMapClickButton(value: unknown): MapClickButton {
+  return value === "left" ? "left" : "right";
+}
+
 /**
  * chrome.storage.sync-backed settings (falls back to local).
- * Tip Follow default on; persisted for #10 to wire behavior.
+ * Map Click Button default: right.
  */
 export class ChromeSettingsStore implements SettingsStore {
   private listeners = new Set<ChangeListener>();
@@ -27,13 +31,13 @@ export class ChromeSettingsStore implements SettingsStore {
     await this.set(KEYS.featureEnabled, enabled);
   }
 
-  async getTipFollowEnabled(): Promise<boolean> {
-    const v = await this.get(KEYS.tipFollowEnabled);
-    return v === undefined ? true : Boolean(v);
+  async getMapClickButton(): Promise<MapClickButton> {
+    const v = await this.get(KEYS.mapClickButton);
+    return parseMapClickButton(v);
   }
 
-  async setTipFollowEnabled(enabled: boolean): Promise<void> {
-    await this.set(KEYS.tipFollowEnabled, enabled);
+  async setMapClickButton(button: MapClickButton): Promise<void> {
+    await this.set(KEYS.mapClickButton, button);
   }
 
   async getPanoLayout(): Promise<PanoLayout | null> {
@@ -69,7 +73,7 @@ export class ChromeSettingsStore implements SettingsStore {
   /** Defaults used when storage is empty — exported for tests/docs. */
   static defaults = {
     featureEnabled: true,
-    tipFollowEnabled: true,
+    mapClickButton: "right" as MapClickButton,
     panoLayout: DEFAULT_PANO_LAYOUT,
   };
 
@@ -80,10 +84,7 @@ export class ChromeSettingsStore implements SettingsStore {
     this.watching = true;
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "sync" && area !== "local") return;
-      if (
-        KEYS.featureEnabled in changes ||
-        KEYS.tipFollowEnabled in changes
-      ) {
+      if (KEYS.featureEnabled in changes || KEYS.mapClickButton in changes) {
         for (const l of this.listeners) l();
       }
     });

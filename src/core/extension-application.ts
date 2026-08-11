@@ -1,5 +1,5 @@
 import { DEFAULT_PANO_LAYOUT } from "../domain/types.js";
-import type { LatLng, PanoLayout } from "../domain/types.js";
+import type { LatLng, MapClickButton, PanoLayout } from "../domain/types.js";
 import type {
   CredentialSource,
   HostPage,
@@ -17,7 +17,6 @@ export type ExtensionApplicationDeps = {
 /**
  * Extension application core.
  * Testable behind Host Page / Credential source / Street View surface fakes.
- * Tip Follow behavior is intentionally a no-op until #10.
  */
 export class ExtensionApplication {
   private readonly hostPage: HostPage;
@@ -29,6 +28,7 @@ export class ExtensionApplication {
   private mapClickUnsub: (() => void) | null = null;
   private onRouteBuilder = false;
   private featureEnabled = false;
+  private mapClickButton: MapClickButton = "right";
   private userDismissed = false;
   private lastSuccessfulAnchor: LatLng | null = null;
   private coverageGapActive = false;
@@ -46,6 +46,7 @@ export class ExtensionApplication {
     return {
       onRouteBuilder: this.onRouteBuilder,
       featureEnabled: this.featureEnabled,
+      mapClickButton: this.mapClickButton,
       panoMounted: this.streetView.isMounted(),
       userDismissed: this.userDismissed,
       lastSuccessfulAnchor: this.lastSuccessfulAnchor
@@ -60,6 +61,8 @@ export class ExtensionApplication {
     this.started = true;
 
     this.featureEnabled = await this.settings.getFeatureEnabled();
+    this.mapClickButton = await this.settings.getMapClickButton();
+    this.hostPage.setMapClickButton(this.mapClickButton);
 
     this.unsubs.push(
       this.settings.onSettingsChange(() => {
@@ -109,6 +112,9 @@ export class ExtensionApplication {
   }
 
   private async refreshFromSettings(): Promise<void> {
+    this.mapClickButton = await this.settings.getMapClickButton();
+    this.hostPage.setMapClickButton(this.mapClickButton);
+
     const enabled = await this.settings.getFeatureEnabled();
     if (enabled === this.featureEnabled) return;
     this.featureEnabled = enabled;
@@ -167,8 +173,9 @@ export class ExtensionApplication {
 
   private attachMapClick(): void {
     if (this.mapClickUnsub) return;
-    this.mapClickUnsub = this.hostPage.onMapClick((point) => {
-      void this.handleMapClick(point);
+    this.mapClickUnsub = this.hostPage.onMapClick((point, button) => {
+      if (button !== this.mapClickButton) return;
+      void this.applyAnchor(point);
     });
   }
 
@@ -193,7 +200,7 @@ export class ExtensionApplication {
     }
   }
 
-  private async handleMapClick(point: LatLng): Promise<void> {
+  private async applyAnchor(point: LatLng): Promise<void> {
     if (!this.onRouteBuilder || !this.featureEnabled) return;
 
     this.userDismissed = false;

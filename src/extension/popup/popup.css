@@ -77,3 +77,36 @@ input[type="checkbox"] {
   width: 16px;
   height: 16px;
 }
+
+fieldset.map-click-button {
+  margin: 0;
+  padding: 6px 0 0;
+  border: none;
+  min-inline-size: 0;
+}
+
+fieldset.map-click-button legend {
+  padding: 0;
+  color: var(--text);
+}
+
+.segmented {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.segmented label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.segmented input[type="radio"] {
+  accent-color: var(--accent);
+  margin: 0;
+}

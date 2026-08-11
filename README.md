@@ -6,7 +6,7 @@ Chrome Manifest V3 extension that shows a view-only Google Street View **Pano Wi
 
 - **#8** Map Click → Pano Window with **Dev Key Override** is on `main`.
 - **#9** Access Service HTTP API: see [`access-service/`](access-service/).
-- Tip Follow behavior (#10) and real account wiring (#12) are follow-ups.
+- Real account wiring (#12) is a follow-up.
 
 ## Setup
 
@@ -61,7 +61,7 @@ Mint surface: `POST /v1/credentials/mint` after Google OAuth callback sets a ses
 ## Popup
 
 - Master **Street View / Pano** on/off
-- **Tip Follow** on/off (default on, persisted; no-op until #10)
+- **Set Anchor with** Left click / Right click (default Right; persisted)
 - Account row: **Dev build** (dev profile) or **Not connected** (store profile)
 
 ## Notes

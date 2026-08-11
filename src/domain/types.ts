@@ -38,6 +38,9 @@ export type CredentialResult = CredentialOk | CredentialDenied;
 
 export type CoverageStatus = "covered" | "coverage_gap";
 
+/** Which mouse button performs Map Click (sets the Anchor Point). */
+export type MapClickButton = "left" | "right";
+
 export type AccountPlaceholder = "dev_build" | "not_connected";
 
 export type BuildProfile = "dev" | "store";

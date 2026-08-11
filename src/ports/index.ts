@@ -2,6 +2,7 @@ import type {
   CoverageStatus,
   CredentialResult,
   LatLng,
+  MapClickButton,
   PanoLayout,
   StreetViewCredential,
 } from "../domain/types.js";
@@ -15,19 +16,29 @@ export interface CredentialSource {
 }
 
 /**
- * Host Page port — Route Builder enter/leave and Map Click.
- * Tip Follow signals land in #10.
+ * Host Page port — Route Builder enter/leave and Map Click (left or right).
  */
 export interface HostPage {
   isRouteBuilder(): boolean;
   /** Subscribe to Route Builder presence. Immediate if already there. */
   onRouteBuilderChange(listener: (active: boolean) => void): () => void;
-  onMapClick(listener: (point: LatLng) => void): () => void;
+  /**
+   * Map Click with which button produced it.
+   * Callers (core) filter by Map Click Button setting.
+   */
+  onMapClick(
+    listener: (point: LatLng, button: MapClickButton) => void,
+  ): () => void;
   /**
    * Fired when the rider clicks the map but lat/lng could not be resolved
    * (e.g. Strava MRE API shape changed). Optional for fakes/tests.
    */
   onMapClickMiss?(listener: (reason: string) => void): () => void;
+  /**
+   * Which button is the active Map Click Button (default right).
+   * Used so right-click can suppress the browser menu only when selected.
+   */
+  setMapClickButton(button: MapClickButton): void;
 }
 
 /**
@@ -59,10 +70,10 @@ export interface StreetViewSurface {
 export interface SettingsStore {
   getFeatureEnabled(): Promise<boolean>;
   setFeatureEnabled(enabled: boolean): Promise<void>;
-  getTipFollowEnabled(): Promise<boolean>;
-  setTipFollowEnabled(enabled: boolean): Promise<void>;
+  getMapClickButton(): Promise<MapClickButton>;
+  setMapClickButton(button: MapClickButton): Promise<void>;
   getPanoLayout(): Promise<PanoLayout | null>;
   setPanoLayout(layout: PanoLayout): Promise<void>;
-  /** Subscribe to feature / tip-follow changes from Popup or elsewhere. */
+  /** Subscribe to feature / Map Click Button changes from Popup or elsewhere. */
   onSettingsChange(listener: () => void): () => void;
 }
