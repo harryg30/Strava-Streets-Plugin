@@ -16,7 +16,9 @@ describe("Dev Key Override / credential wiring", () => {
     expect(source).toBeInstanceOf(DevKeyOverrideCredentialSource);
   });
 
-  it("store profile uses Access Credential Adapter (no Dev Key Override)", () => {
+  it("store profile helper selects AccessCredentialSource without Dev Key Override", () => {
+    // Profile helper only proves Adapter choice — production Store uses
+    // BackgroundCredentialProxy via active.store.ts (see ADR 0002).
     const source = createCredentialSourceForProfile("store");
     expect(source).toBeInstanceOf(AccessCredentialSource);
     expect(source).not.toBeInstanceOf(DevKeyOverrideCredentialSource);

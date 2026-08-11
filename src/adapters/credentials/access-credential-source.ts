@@ -5,6 +5,10 @@ import type {
   DenialCode,
 } from "../../domain/types.js";
 import type { CredentialSource } from "../../ports/index.js";
+import {
+  ACCESS_UNREACHABLE_REASON,
+  normalizeAccessOrigin,
+} from "./access-shared.js";
 
 export type MintTransportOk = {
   ok: true;
@@ -48,7 +52,7 @@ function denialReason(code: DenialCode, resetAt?: Date): string {
         ? `Daily Street View quota reached. Resets ${resetAt.toISOString()}.`
         : "Daily Street View quota reached. Try again tomorrow.";
     case "unavailable":
-      return "Access Service is unreachable. Try again later.";
+      return ACCESS_UNREACHABLE_REASON;
   }
 }
 
@@ -83,7 +87,7 @@ export class AccessCredentialSource implements CredentialSource {
   constructor(deps: AccessCredentialSourceDeps) {
     this.transport = deps.transport;
     this.browserSession = deps.browserSession;
-    this.accessOrigin = deps.accessOrigin.replace(/\/$/, "");
+    this.accessOrigin = normalizeAccessOrigin(deps.accessOrigin);
     this.clock = deps.clock ?? (() => new Date());
   }
 

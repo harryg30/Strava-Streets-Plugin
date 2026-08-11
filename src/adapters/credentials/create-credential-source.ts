@@ -4,8 +4,10 @@ import { AccessCredentialSource } from "./access-credential-source.js";
 import { DevKeyOverrideCredentialSource } from "./dev-key-override.js";
 
 /**
- * Test/helper factory that can select either adapter by profile.
- * Extension entrypoints use `active.ts` (build-aliased) so Store artifacts
+ * Test/helper factory for profile selection only.
+ * "store" returns a bare AccessCredentialSource (no Dev Key) — not the
+ * production Store wiring (`active.store` → BackgroundCredentialProxy).
+ * Extension entrypoints use build-aliased `active.ts` so Store artifacts
  * never bundle Dev Key Override.
  */
 export function createCredentialSourceForProfile(

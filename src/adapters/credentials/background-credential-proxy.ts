@@ -3,6 +3,7 @@ import type {
   CredentialResult,
 } from "../../domain/types.js";
 import type { CredentialSource } from "../../ports/index.js";
+import { ACCESS_UNREACHABLE_REASON } from "./access-shared.js";
 
 type CredentialsMessage =
   | { type: "credentials.getStreetViewCredentials" }
@@ -26,8 +27,7 @@ export class BackgroundCredentialProxy implements CredentialSource {
       return {
         status: "denied",
         code: "unavailable",
-        reason:
-          "Access Service is unreachable. Try again later.",
+        reason: ACCESS_UNREACHABLE_REASON,
       };
     }
     return res.result;

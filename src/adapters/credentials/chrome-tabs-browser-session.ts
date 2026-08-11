@@ -1,4 +1,5 @@
 import type { BrowserSession } from "./access-credential-source.js";
+import { normalizeAccessOrigin } from "./access-shared.js";
 
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -9,7 +10,7 @@ function isOauthCallbackSuccess(urlString: string, accessOrigin: string): boolea
   } catch {
     return false;
   }
-  const origin = accessOrigin.replace(/\/$/, "");
+  const origin = normalizeAccessOrigin(accessOrigin);
   if (url.origin !== origin) return false;
   if (url.pathname !== "/v1/auth/google/callback") return false;
   if (url.searchParams.get("error")) return false;

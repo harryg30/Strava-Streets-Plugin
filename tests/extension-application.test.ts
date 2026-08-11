@@ -205,6 +205,30 @@ describe("ExtensionApplication seams", () => {
     expect(streetView.blanked).toBe(false);
   });
 
+  it("membership_required denial blocks Street View load and keeps prior Pano", async () => {
+    host.setRouteBuilder(true);
+    await flush();
+    host.emitMapClick({ lat: 1, lng: 1 });
+    await flush();
+    expect(streetView.lastSuccessfulPoint).toEqual({ lat: 1, lng: 1 });
+    const shownBefore = streetView.shownAnchors.length;
+
+    credentials.next = {
+      status: "denied",
+      code: "membership_required",
+      reason: "Street View access is not available for this account.",
+    };
+    host.emitMapClick({ lat: 9, lng: 9 });
+    await flush();
+
+    expect(streetView.statusMessage).toBe(
+      "Street View access is not available for this account.",
+    );
+    expect(streetView.lastSuccessfulPoint).toEqual({ lat: 1, lng: 1 });
+    expect(streetView.shownAnchors).toHaveLength(shownBefore);
+    expect(streetView.blanked).toBe(false);
+  });
+
   it("Map Click Button defaults to right", async () => {
     expect(await settings.getMapClickButton()).toBe("right");
     expect(app.getState().mapClickButton).toBe("right");

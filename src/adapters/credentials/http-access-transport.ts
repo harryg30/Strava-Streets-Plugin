@@ -2,6 +2,7 @@ import type {
   MintTransportResult,
   AccessTransport,
 } from "./access-credential-source.js";
+import { normalizeAccessOrigin } from "./access-shared.js";
 
 export type HttpAccessTransportDeps = {
   accessOrigin: string;
@@ -17,7 +18,7 @@ export class HttpAccessTransport implements AccessTransport {
   private readonly fetchImpl: typeof fetch;
 
   constructor(deps: HttpAccessTransportDeps) {
-    const origin = deps.accessOrigin.replace(/\/$/, "");
+    const origin = normalizeAccessOrigin(deps.accessOrigin);
     this.mintUrl = `${origin}/v1/credentials/mint`;
     this.fetchImpl = deps.fetch ?? fetch.bind(globalThis);
   }
