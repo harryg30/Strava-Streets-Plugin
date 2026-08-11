@@ -1,0 +1,79 @@
+:root {
+  --bg: #14181c;
+  --panel: #1e252b;
+  --text: #eef2f5;
+  --muted: #9aa7b2;
+  --accent: #fc4c02;
+  --border: #2e3840;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 300px;
+  padding: 16px;
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(252, 76, 2, 0.18), transparent 55%),
+    linear-gradient(165deg, #1a2228 0%, var(--bg) 55%);
+  color: var(--text);
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-size: 13px;
+}
+
+.brand h1 {
+  margin: 0;
+  font-family: "IBM Plex Serif", Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  margin: 4px 0 14px;
+  color: var(--muted);
+}
+
+.controls,
+.account {
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+label.row {
+  cursor: pointer;
+}
+
+.hint {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
