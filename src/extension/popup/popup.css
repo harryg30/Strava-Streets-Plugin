@@ -57,10 +57,6 @@ body {
   border-top: 1px solid var(--border);
 }
 
-label.row {
-  cursor: pointer;
-}
-
 .hint {
   margin: 4px 0 0;
   color: var(--muted);
@@ -86,12 +82,6 @@ label.row {
 
 .connect:hover {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-}
-
-input[type="checkbox"] {
-  accent-color: var(--accent);
-  width: 16px;
-  height: 16px;
 }
 
 fieldset.map-click-button {

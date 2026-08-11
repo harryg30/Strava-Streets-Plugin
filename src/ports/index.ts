@@ -78,12 +78,10 @@ export interface StreetViewSurface {
 }
 
 export interface SettingsStore {
-  getFeatureEnabled(): Promise<boolean>;
-  setFeatureEnabled(enabled: boolean): Promise<void>;
   getMapClickButton(): Promise<MapClickButton>;
   setMapClickButton(button: MapClickButton): Promise<void>;
   getPanoLayout(): Promise<PanoLayout | null>;
   setPanoLayout(layout: PanoLayout): Promise<void>;
-  /** Subscribe to feature / Map Click Button changes from Popup or elsewhere. */
+  /** Subscribe to Map Click Button changes from Popup or elsewhere. */
   onSettingsChange(listener: () => void): () => void;
 }

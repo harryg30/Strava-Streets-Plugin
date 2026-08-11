@@ -43,27 +43,7 @@ describe("ExtensionApplication seams", () => {
     expect(streetView.shownAnchors).toHaveLength(0);
   });
 
-  it("feature off on Route Builder: no Pano and no Map Click listeners", async () => {
-    app.stop();
-    settings.featureEnabled = false;
-    streetView = new FakeStreetViewSurface();
-    host = new FakeHostPage();
-    app = new ExtensionApplication({
-      hostPage: host,
-      credentials,
-      streetView,
-      settings,
-    });
-    await app.start();
-
-    host.setRouteBuilder(true);
-    await flush();
-
-    expect(streetView.isMounted()).toBe(false);
-    expect(host.mapClickSubscriptionCount).toBe(0);
-  });
-
-  it("feature on: mounts Pano with remembered layout on Route Builder", async () => {
+  it("mounts Pano with remembered layout on Route Builder", async () => {
     settings.panoLayout = { x: 40, y: 60, width: 500, height: 360 };
     host.setRouteBuilder(true);
     await flush();
@@ -91,7 +71,7 @@ describe("ExtensionApplication seams", () => {
     expect(app.getState().onRouteBuilder).toBe(false);
   });
 
-  it("returning with feature on restores Pano with remembered layout", async () => {
+  it("returning to Route Builder restores Pano with remembered layout", async () => {
     settings.panoLayout = { x: 10, y: 20, width: 400, height: 300 };
     host.setRouteBuilder(true);
     await flush();
@@ -203,18 +183,6 @@ describe("ExtensionApplication seams", () => {
     streetView.simulateLayoutChange(next);
     await flush();
     expect(settings.panoLayout).toEqual(next);
-  });
-
-  it("turning feature off tears down Pano and Map Click listeners", async () => {
-    host.setRouteBuilder(true);
-    await flush();
-    expect(streetView.isMounted()).toBe(true);
-
-    await settings.setFeatureEnabled(false);
-    await flush();
-
-    expect(streetView.isMounted()).toBe(false);
-    expect(host.mapClickSubscriptionCount).toBe(0);
   });
 
   it("credential denial surfaces a status message without blanking", async () => {

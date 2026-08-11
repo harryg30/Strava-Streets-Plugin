@@ -7,9 +7,6 @@ declare const __BUILD_PROFILE__: BuildProfile;
 const settings = new ChromeSettingsStore();
 const credentials = createCredentialSource();
 
-const featureEl = document.getElementById(
-  "feature-enabled",
-) as HTMLInputElement | null;
 const leftEl = document.getElementById(
   "map-click-left",
 ) as HTMLInputElement | null;
@@ -52,15 +49,10 @@ async function paintAccount(): Promise<void> {
 }
 
 async function hydrate(): Promise<void> {
-  if (!featureEl || !leftEl || !rightEl || !accountEl || !connectBtn) return;
+  if (!leftEl || !rightEl || !accountEl || !connectBtn) return;
 
-  featureEl.checked = await settings.getFeatureEnabled();
   applyMapClickButton(await settings.getMapClickButton());
   await paintAccount();
-
-  featureEl.addEventListener("change", () => {
-    void settings.setFeatureEnabled(featureEl.checked);
-  });
 
   const onButtonChange = () => {
     const button: MapClickButton = rightEl.checked ? "right" : "left";

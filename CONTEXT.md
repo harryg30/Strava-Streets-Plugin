@@ -1,6 +1,6 @@
 # Strava Streets Plugin
 
-A Chrome extension that shows Google Street View beside Strava’s Route Builder so the rider can see street-level context while drawing a route. On/off and settings live in the Extension Popup; the Pano Window is an in-page overlay on the Route Builder only (torn down when leaving that page; size/position remembered). Street View uses the official Google Maps JavaScript API. The Pano is view-only: it never edits the route.
+A Chrome extension that shows Google Street View beside Strava’s Route Builder so the rider can see street-level context while drawing a route. Settings live in the Extension Popup; the Pano Window is an in-page overlay on the Route Builder only (torn down when leaving that page; size/position remembered). Street View uses the official Google Maps JavaScript API. The Pano is view-only: it never edits the route.
 
 Credentials: the Access Service is the real path (Google OAuth + `base` membership → daily mint quota → time-limited restricted Maps browser key). A Dev Key Override may exist for local debugging only and must not ship in Store builds. Google Maps cost is billed to the project’s Google Cloud account. Price mechanics stay flexible (likely Patreon tiers around $1/month and $5/month). Sideload is fine during development; Chrome Web Store listing can lag the Access Service.
 
@@ -31,7 +31,7 @@ The Extension Popup choice of which mouse button performs Map Click: `left` or `
 _Avoid_: Tip Follow toggle, modifier-key chords
 
 **Extension Popup**:
-The UI opened from the extension’s Chrome toolbar icon. Holds a master Street View / Pano on/off, Map Click Button (Left / Right), and an account row (placeholder until Access Service / membership is wired). Not a home for pasting a Google API key.
+The UI opened from the extension’s Chrome toolbar icon. Holds Map Click Button (Left / Right) and an account row (placeholder until Access Service / membership is wired). Not a home for pasting a Google API key.
 _Avoid_: in-page settings panel, Store-facing “paste your API key”
 
 **Coverage Gap**:

@@ -171,19 +171,9 @@ export class FakeStreetViewSurface implements StreetViewSurface {
 }
 
 export class FakeSettingsStore implements SettingsStore {
-  featureEnabled = true;
   mapClickButton: MapClickButton = "right";
   panoLayout: PanoLayout | null = null;
   private listeners = new Set<() => void>();
-
-  async getFeatureEnabled(): Promise<boolean> {
-    return this.featureEnabled;
-  }
-
-  async setFeatureEnabled(enabled: boolean): Promise<void> {
-    this.featureEnabled = enabled;
-    this.notify();
-  }
 
   async getMapClickButton(): Promise<MapClickButton> {
     return this.mapClickButton;
