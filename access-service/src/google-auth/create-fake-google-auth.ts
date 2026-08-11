@@ -1,17 +1,17 @@
 import { mintState, verifyState } from "./state.js";
 import { GoogleAuthError, type GoogleAuth } from "./types.js";
 
-const DEV_STATE_SECRET = "dev-oauth-stand-in-state-secret";
+const FAKE_STATE_SECRET = "fake-google-auth-state-secret";
 
 /**
- * Local/CI Adapter — not Google verification.
+ * Fake Adapter for local/CI — not Google verification.
  * `begin` returns a bounce URL back to `redirectUri` with `code` + `state`.
  * `complete` treats `code` as `googleAccountId` after state check.
  */
 export function createFakeGoogleAuth(
   opts: { stateSecret?: string; bounceCode?: string } = {},
 ): GoogleAuth {
-  const stateSecret = opts.stateSecret ?? DEV_STATE_SECRET;
+  const stateSecret = opts.stateSecret ?? FAKE_STATE_SECRET;
   const bounceCode = opts.bounceCode ?? "dev-google-user";
 
   return {

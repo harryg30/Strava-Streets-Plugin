@@ -39,6 +39,12 @@ function parseCookies(header: string | undefined): Record<string, string> {
   return out;
 }
 
+function applySetCookies(res: ServerResponse, setCookies: string[]): void {
+  if (setCookies.length > 0) {
+    res.setHeader("set-cookie", setCookies);
+  }
+}
+
 function sendJson(
   res: ServerResponse,
   status: number,
@@ -49,9 +55,7 @@ function sendJson(
   res.statusCode = status;
   res.setHeader("content-type", "application/json; charset=utf-8");
   res.setHeader("content-length", Buffer.byteLength(payload));
-  if (setCookies.length > 0) {
-    res.setHeader("set-cookie", setCookies);
-  }
+  applySetCookies(res, setCookies);
   res.end(payload);
 }
 
@@ -67,9 +71,7 @@ function sendRedirect(
 ): void {
   res.statusCode = 302;
   res.setHeader("location", location);
-  if (setCookies.length > 0) {
-    res.setHeader("set-cookie", setCookies);
-  }
+  applySetCookies(res, setCookies);
   res.end();
 }
 

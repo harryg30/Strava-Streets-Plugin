@@ -1,6 +1,6 @@
 /**
  * Local server entry — wires Access + Google Auth Adapters.
- * Uses production Google OAuth when client env is set; otherwise the fake stand-in.
+ * Uses production Google OAuth when client env is set; otherwise the fake Adapter.
  */
 import { createServer } from "node:http";
 import { createAccess } from "../access/create-access.js";
@@ -37,7 +37,7 @@ function createGoogleAuthFromEnv(): { auth: GoogleAuth; mode: string } {
 
   return {
     auth: createFakeGoogleAuth(),
-    mode: "fake stand-in (set GOOGLE_OAUTH_CLIENT_ID/SECRET for Google)",
+    mode: "fake Adapter (set GOOGLE_OAUTH_CLIENT_ID/SECRET for Google)",
   };
 }
 

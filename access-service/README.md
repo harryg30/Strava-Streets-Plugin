@@ -24,7 +24,7 @@ npm run typecheck
 |--------|------|--------|
 | `GET` | `/v1/auth/google/start` | 302 to Google (or fake bounce). Sets `oauth_state` cookie. `redirect_uri` is `{PUBLIC_ORIGIN}/v1/auth/google/callback`. |
 | `GET` | `/v1/auth/google/callback` | Query `code` + `state` → Set-Cookie `access_session`. |
-| `POST` | `/v1/auth/google/callback` | Body `{ code, state }` → same as GET (handy for tests / future extension posts). |
+| `POST` | `/v1/auth/google/callback` | Body `{ code, state }` → same as GET. **Test/transport only** — not extension login UX (#11). |
 | `POST` | `/v1/credentials/mint` | Cookie required → `200 { credential, expires_at }` or `401` / `403 { error }` |
 
 ## Env

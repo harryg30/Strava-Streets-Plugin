@@ -3,9 +3,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 const STATE_TTL_MS = 10 * 60 * 1000;
 
 type StatePayload = {
-  n: string;
-  r: string;
-  e: number;
+  nonce: string;
+  redirectUri: string;
+  exp: number;
 };
 
 function b64urlJson(value: unknown): string {
@@ -35,9 +35,9 @@ export function mintState(
   nonce = `${nowMs}-${Math.random().toString(36).slice(2)}`,
 ): string {
   const payload: StatePayload = {
-    n: nonce,
-    r: redirectUri,
-    e: nowMs + STATE_TTL_MS,
+    nonce,
+    redirectUri,
+    exp: nowMs + STATE_TTL_MS,
   };
   const body = b64urlJson(payload);
   return `${body}.${sign(secret, body)}`;
@@ -56,8 +56,8 @@ export function verifyState(
   if (!safeEqual(sig, sign(secret, body))) return false;
   try {
     const payload = parseB64urlJson<StatePayload>(body);
-    if (payload.r !== redirectUri) return false;
-    if (typeof payload.e !== "number" || payload.e < nowMs) return false;
+    if (payload.redirectUri !== redirectUri) return false;
+    if (typeof payload.exp !== "number" || payload.exp < nowMs) return false;
     return true;
   } catch {
     return false;
