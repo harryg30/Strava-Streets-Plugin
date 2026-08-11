@@ -117,3 +117,43 @@
     #666 75%
   );
 }
+
+/* Anchor Point peg on the Route Builder map (non-interactive) */
+.ssp-anchor-peg {
+  position: absolute;
+  z-index: 2147483645;
+  width: 20px;
+  height: 28px;
+  margin-left: -10px;
+  margin-top: -28px;
+  pointer-events: none;
+}
+
+.ssp-anchor-peg--fixed {
+  position: fixed;
+}
+
+.ssp-anchor-peg__pin {
+  position: absolute;
+  left: 1px;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50% 50% 50% 0;
+  background: #fc4c02;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  transform: rotate(-45deg);
+}
+
+.ssp-anchor-peg__pin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: #fff;
+}

@@ -34,6 +34,7 @@ export class FakeHostPage implements HostPage {
   >();
   mapClickSubscriptionCount = 0;
   mapClickButton: MapClickButton = "right";
+  anchorMarker: LatLng | null = null;
 
   setRouteBuilder(active: boolean): void {
     if (this.routeBuilder === active) return;
@@ -47,6 +48,10 @@ export class FakeHostPage implements HostPage {
 
   setMapClickButton(button: MapClickButton): void {
     this.mapClickButton = button;
+  }
+
+  setAnchorMarker(point: LatLng | null): void {
+    this.anchorMarker = point ? { ...point } : null;
   }
 
   isRouteBuilder(): boolean {

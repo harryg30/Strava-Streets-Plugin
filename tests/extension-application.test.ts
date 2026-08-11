@@ -150,6 +150,28 @@ describe("ExtensionApplication seams", () => {
     expect(app.getState().coverageGapActive).toBe(false);
   });
 
+  it("Anchor map peg: covered click places peg; Coverage Gap keeps last; tear-down clears", async () => {
+    host.setRouteBuilder(true);
+    await flush();
+    expect(host.anchorMarker).toBeNull();
+
+    const covered = { lat: 40.7, lng: -74.0 };
+    const gap = { lat: 40.8, lng: -74.1 };
+    streetView.gapPoints.add(pointKey(40.8, -74.1));
+
+    host.emitMapClick(covered);
+    await flush();
+    expect(host.anchorMarker).toEqual(covered);
+
+    host.emitMapClick(gap);
+    await flush();
+    expect(host.anchorMarker).toEqual(covered);
+
+    host.setRouteBuilder(false);
+    await flush();
+    expect(host.anchorMarker).toBeNull();
+  });
+
   it("Pano is view-only: surface has no route-mutation API used by core", async () => {
     host.setRouteBuilder(true);
     await flush();

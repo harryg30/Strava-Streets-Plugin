@@ -9,6 +9,7 @@
  * bare map-center (false "No Street View at this point").
  */
 import {
+  resolveLatLngToScreen,
   resolveScreenToLatLng,
   type MreCameraLike,
 } from "./mre-screen-to-latlng.js";
@@ -164,6 +165,43 @@ import {
     };
   }
 
+  function latLngToScreen(
+    lat: number,
+    lng: number,
+  ): {
+    ok: boolean;
+    clientX?: number;
+    clientY?: number;
+    error?: string;
+    tried?: string[];
+  } {
+    const canvas = document.querySelector(
+      'canvas[data-testid="mre-canvas"]',
+    ) as HTMLElement | null;
+    if (!canvas) {
+      return { ok: false, error: "No mre-canvas on page" };
+    }
+    const engine = getTerrainEngine();
+    if (!engine) {
+      return { ok: false, error: "terrainEngine not found on React tree" };
+    }
+    const camera = getCamera(engine);
+    if (!camera) {
+      return { ok: false, error: "getCamera() returned nothing" };
+    }
+    const rect = canvas.getBoundingClientRect();
+    return resolveLatLngToScreen(
+      asCameraLike(camera),
+      {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      },
+      { lat, lng },
+    );
+  }
+
   window.addEventListener("message", (event) => {
     if (event.source !== window) return;
     const data = event.data;
@@ -174,6 +212,8 @@ import {
       type: string;
       clientX?: number;
       clientY?: number;
+      lat?: number;
+      lng?: number;
     };
 
     try {
@@ -202,6 +242,14 @@ import {
           return;
         }
         reply(id, screenToLatLng(data.clientX, data.clientY));
+        return;
+      }
+      if (type === "latLngToScreen") {
+        if (typeof data.lat !== "number" || typeof data.lng !== "number") {
+          reply(id, { ok: false, error: "lat/lng required" });
+          return;
+        }
+        reply(id, latLngToScreen(data.lat, data.lng));
         return;
       }
       reply(id, { ok: false, error: `Unknown type: ${type}` });

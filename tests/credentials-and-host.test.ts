@@ -3,6 +3,7 @@ import { createCredentialSourceForProfile } from "../src/adapters/credentials/cr
 import { DeniedCredentialSource } from "../src/adapters/credentials/denied.js";
 import { DevKeyOverrideCredentialSource } from "../src/adapters/credentials/dev-key-override.js";
 import {
+  clickScreenMatchesAnchor,
   exceedsDragThreshold,
   finishPointerGestureState,
   isRouteBuilderUrl,
@@ -113,5 +114,24 @@ describe("Map Click Button gesture finish", () => {
     );
     expect(dragged).toBe(false);
     expect(next.pointerDown).toBeNull();
+  });
+});
+
+describe("Anchor peg click-screen cache", () => {
+  it("matches when screen coords belong to the Anchor being pegged", () => {
+    const covered = { lat: 40.7, lng: -74.0 };
+    expect(clickScreenMatchesAnchor(covered, covered)).toBe(true);
+    expect(
+      clickScreenMatchesAnchor(
+        { lat: 40.7 + 1e-9, lng: -74.0 },
+        covered,
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects Coverage Gap click coords so remount cannot jump the peg", () => {
+    const covered = { lat: 40.7, lng: -74.0 };
+    const gap = { lat: 40.8, lng: -74.1 };
+    expect(clickScreenMatchesAnchor(gap, covered)).toBe(false);
   });
 });

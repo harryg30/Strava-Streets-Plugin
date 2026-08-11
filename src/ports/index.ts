@@ -39,6 +39,11 @@ export interface HostPage {
    * Used so right-click can suppress the browser menu only when selected.
    */
   setMapClickButton(button: MapClickButton): void;
+  /**
+   * Peg on the Route Builder map for the Pano currently shown.
+   * Pass null to remove (tear-down / leave Route Builder).
+   */
+  setAnchorMarker(point: LatLng | null): void;
 }
 
 /**

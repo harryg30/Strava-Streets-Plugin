@@ -19,7 +19,7 @@ The street-level 360° Street View image shown in the Pano Window for the curren
 _Avoid_: basemap, satellite, Google Maps (as the whole product)
 
 **Anchor Point**:
-The map location that determines which Pano is shown. Updated by Map Click.
+The map location that determines which Pano is shown. Updated by Map Click. A peg on the Route Builder map marks the Pano currently shown (stays on the last successful Pano during a Coverage Gap).
 _Avoid_: waypoint, GPS fix
 
 **Map Click**:
