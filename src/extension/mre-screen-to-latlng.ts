@@ -319,6 +319,23 @@ export function resolveLatLngToScreen(
   };
 }
 
+function sampleLookAt(
+  camera: MreCameraLike,
+  x: number,
+  y: number,
+): LatLng | null {
+  if (typeof camera.getLookAtPoint !== "function") return null;
+  try {
+    return (
+      deepFindLatLng(camera.getLookAtPoint(x, y)) ??
+      deepFindLatLng(camera.getLookAtPoint([x, y])) ??
+      deepFindLatLng(camera.getLookAtPoint({ x, y }))
+    );
+  } catch {
+    return null;
+  }
+}
+
 /** Derive mpp from how far getLookAtPoint moves for a known pixel offset. */
 export function estimateMetersPerPixel(
   camera: MreCameraLike,
@@ -329,20 +346,8 @@ export function estimateMetersPerPixel(
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
 
-  const sample = (x: number, y: number): LatLng | null => {
-    try {
-      return (
-        deepFindLatLng(camera.getLookAtPoint!(x, y)) ??
-        deepFindLatLng(camera.getLookAtPoint!([x, y])) ??
-        deepFindLatLng(camera.getLookAtPoint!({ x, y }))
-      );
-    } catch {
-      return null;
-    }
-  };
-
   const origin =
-    sample(cx, cy) ??
+    sampleLookAt(camera, cx, cy) ??
     (() => {
       try {
         return deepFindLatLng(camera.getLookAtPoint!());
@@ -352,15 +357,15 @@ export function estimateMetersPerPixel(
     })();
   if (!origin) return null;
 
-  const east = sample(cx + probePx, cy);
+  const east = sampleLookAt(camera, cx + probePx, cy);
   if (east && !nearlySame(east, origin)) {
     const meters = horizontalMeters(origin, east);
     if (meters > 0) return meters / probePx;
   }
 
-  const south = sample(cx, cy + probePx);
+  const south = sampleLookAt(camera, cx, cy + probePx);
   if (south && !nearlySame(south, origin)) {
-    const meters = verticalMeters(origin, south);
+    const meters = horizontalMeters(origin, south);
     if (meters > 0) return meters / probePx;
   }
 
@@ -378,18 +383,6 @@ export function searchScreenForLatLng(
 ): { clientX: number; clientY: number } | null {
   if (typeof camera.getLookAtPoint !== "function") return null;
 
-  const sample = (x: number, y: number): LatLng | null => {
-    try {
-      return (
-        deepFindLatLng(camera.getLookAtPoint!(x, y)) ??
-        deepFindLatLng(camera.getLookAtPoint!([x, y])) ??
-        deepFindLatLng(camera.getLookAtPoint!({ x, y }))
-      );
-    } catch {
-      return null;
-    }
-  };
-
   // Sanity: off-center sample must differ from no-arg center, else search is useless.
   const center = (() => {
     try {
@@ -398,7 +391,7 @@ export function searchScreenForLatLng(
       return null;
     }
   })();
-  const probe = sample(canvas.width * 0.75, canvas.height * 0.75);
+  const probe = sampleLookAt(camera, canvas.width * 0.75, canvas.height * 0.75);
   if (!center || !probe || nearlySame(center, probe)) return null;
 
   let best = { x: canvas.width / 2, y: canvas.height / 2, score: Infinity };
@@ -406,7 +399,7 @@ export function searchScreenForLatLng(
   const stepY = Math.max(24, Math.floor(canvas.height / 12));
   for (let y = stepY / 2; y < canvas.height; y += stepY) {
     for (let x = stepX / 2; x < canvas.width; x += stepX) {
-      const ll = sample(x, y);
+      const ll = sampleLookAt(camera, x, y);
       if (!ll) continue;
       const score = latLngScore(ll, target);
       if (score < best.score) best = { x, y, score };
@@ -423,7 +416,7 @@ export function searchScreenForLatLng(
         const nx = x + dx;
         const ny = y + dy;
         if (nx < 0 || ny < 0 || nx > canvas.width || ny > canvas.height) continue;
-        const ll = sample(nx, ny);
+        const ll = sampleLookAt(camera, nx, ny);
         if (!ll) continue;
         const s = latLngScore(ll, target);
         if (s < score) {
@@ -446,10 +439,6 @@ function horizontalMeters(a: LatLng, b: LatLng): number {
   const dEast = (b.lng - a.lng) * 111_320 * Math.cos(midLat);
   const dNorth = (b.lat - a.lat) * 111_320;
   return Math.hypot(dEast, dNorth);
-}
-
-function verticalMeters(a: LatLng, b: LatLng): number {
-  return horizontalMeters(a, b);
 }
 
 function latLngScore(a: LatLng, b: LatLng): number {

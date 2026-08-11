@@ -75,6 +75,18 @@ type MreResponse = {
 
 const ANCHOR_PEG_ID = "ssp-anchor-peg";
 
+/** Click-pixel cache is only valid when it matches the Anchor being pegged. */
+export function clickScreenMatchesAnchor(
+  screenPoint: LatLng,
+  anchor: LatLng,
+  eps = 1e-7,
+): boolean {
+  return (
+    Math.abs(screenPoint.lat - anchor.lat) <= eps &&
+    Math.abs(screenPoint.lng - anchor.lng) <= eps
+  );
+}
+
 /**
  * Strava Host Page adapter.
  * Map Click (left or right) → lat/lng via Leaflet or MRE/FATMAP terrainEngine.
@@ -108,7 +120,6 @@ export class StravaHostPage implements HostPage {
     clientY: number;
   } | null = null;
   private pegEl: HTMLElement | null = null;
-  private pegMode: "fixed" | null = null;
   private pegTrackUntil = 0;
   private pegTrackRaf: number | null = null;
 
@@ -127,18 +138,20 @@ export class StravaHostPage implements HostPage {
       this.removePeg();
       return;
     }
-    // Place immediately from the Map Click's screen coords — do not wait on
+    // Place immediately from matching Map Click pixels — do not wait on
     // MRE lat→screen (often missing mpp; awaiting it left the peg invisible).
-    if (this.lastClickScreen) {
+    // Never invent viewport-center; ignore gap-click screen coords that don't
+    // match the Anchor (Coverage Gap keeps last successful Pano).
+    if (
+      this.lastClickScreen &&
+      clickScreenMatchesAnchor(this.lastClickScreen.point, this.anchorPoint)
+    ) {
       this.placeFixedPeg(
         this.lastClickScreen.clientX,
         this.lastClickScreen.clientY,
       );
     } else {
-      console.warn(
-        "[Strava Streets] Anchor peg: no Map Click screen coords; placing at viewport center",
-      );
-      this.placeFixedPeg(window.innerWidth / 2, window.innerHeight / 2);
+      this.lastClickScreen = null;
     }
     void this.refinePegFromMre();
   }
@@ -244,11 +257,17 @@ export class StravaHostPage implements HostPage {
     root.addEventListener("contextmenu", this.onMapContextMenu, true);
     this.mapAttached = true;
     this.wirePegRefresh(root);
-    if (this.anchorPoint && this.lastClickScreen) {
-      this.placeFixedPeg(
-        this.lastClickScreen.clientX,
-        this.lastClickScreen.clientY,
-      );
+    if (this.anchorPoint) {
+      if (
+        this.lastClickScreen &&
+        clickScreenMatchesAnchor(this.lastClickScreen.point, this.anchorPoint)
+      ) {
+        this.placeFixedPeg(
+          this.lastClickScreen.clientX,
+          this.lastClickScreen.clientY,
+        );
+      }
+      void this.refinePegFromMre();
     }
     void this.ensureMreBridge().catch(() => {
       /* miss path still reports via DOM click */
@@ -475,12 +494,10 @@ export class StravaHostPage implements HostPage {
       this.pegEl.remove();
       this.pegEl = null;
     }
-    this.pegMode = null;
   }
 
-  private ensurePegEl(mode: "fixed"): HTMLElement {
-    if (this.pegEl && this.pegMode === mode) return this.pegEl;
-    this.removePeg();
+  private ensurePegEl(): HTMLElement {
+    if (this.pegEl) return this.pegEl;
     const el = document.createElement("div");
     el.id = ANCHOR_PEG_ID;
     el.className = "ssp-anchor-peg ssp-anchor-peg--fixed";
@@ -514,12 +531,11 @@ export class StravaHostPage implements HostPage {
       ].join(";");
     }
     this.pegEl = el;
-    this.pegMode = mode;
     return el;
   }
 
   private placeFixedPeg(clientX: number, clientY: number): void {
-    const el = this.ensurePegEl("fixed");
+    const el = this.ensurePegEl();
     // body beats some full-bleed canvas stacking quirks vs documentElement
     const parent = document.body ?? document.documentElement;
     if (el.parentElement !== parent) {
@@ -706,13 +722,6 @@ function latLngFromLeaflet(
 
 type LeafletMapLike = {
   mouseEventToLatLng: (e: MouseEvent) => { lat: number; lng: number };
-  latLngToContainerPoint?: (ll: { lat: number; lng: number }) => {
-    x: number;
-    y: number;
-  };
-  getContainer?: () => HTMLElement;
-  on?: (types: string, fn: () => void) => void;
-  off?: (types: string, fn: () => void) => void;
 };
 
 function findLeafletMap(mapRoot: HTMLElement | null): LeafletMapLike | null {
