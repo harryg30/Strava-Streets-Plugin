@@ -195,6 +195,7 @@ export class ExtensionApplication {
   }
 
   private tearDownPano(): void {
+    this.hostPage.setAnchorMarker(null);
     if (this.streetView.isMounted()) {
       this.streetView.unmount();
     }
@@ -223,9 +224,11 @@ export class ExtensionApplication {
         this.lastSuccessfulAnchor = point;
         this.coverageGapActive = false;
         this.streetView.setCoverageGapNotice(false);
+        this.hostPage.setAnchorMarker(point);
       } else {
         this.coverageGapActive = true;
         this.streetView.setCoverageGapNotice(true);
+        // Keep peg on last successful Pano (do not move to the gap click).
       }
     } catch (err) {
       const message =

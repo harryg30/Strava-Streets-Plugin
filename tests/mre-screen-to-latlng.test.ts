@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   parseLatLng,
+  resolveLatLngToScreen,
   resolveScreenToLatLng,
 } from "../src/extension/mre-screen-to-latlng.js";
 
@@ -57,5 +58,52 @@ describe("resolveScreenToLatLng — click must not collapse to map center", () =
     expect(result.ok).toBe(true);
     expect(result.point).not.toEqual(center);
     expect(result.tried).toContain("camera.center+mpp offset");
+  });
+});
+
+describe("resolveLatLngToScreen — Anchor peg inverse of mpp offset", () => {
+  const canvas = { left: 10, top: 20, width: 800, height: 600 };
+  const center = { lat: 40.0, lng: -105.0 };
+
+  it("round-trips a screen click through lat/lng back near the click", () => {
+    const camera = {
+      getLookAtPoint: () => center,
+      getScaleMetersPerPixel: () => 2.5,
+    };
+    const click = resolveScreenToLatLng(camera, canvas, 500, 350);
+    expect(click.ok).toBe(true);
+    const screen = resolveLatLngToScreen(camera, canvas, click.point!);
+    expect(screen.ok).toBe(true);
+    expect(screen.clientX!).toBeCloseTo(500, 5);
+    expect(screen.clientY!).toBeCloseTo(350, 5);
+  });
+
+  it("estimates mpp from getLookAtPoint probes when scale API is missing", () => {
+    const mpp = 2.5;
+    const camera = {
+      getLookAtPoint: (...args: unknown[]) => {
+        if (args.length === 0) return center;
+        const x = typeof args[0] === "number" ? args[0] : 400;
+        const y = typeof args[1] === "number" ? args[1] : 300;
+        // Match offsetFromCenter / offsetToScreen convention
+        const dxPx = x - 400;
+        const dyPx = y - 300;
+        const dEast = dxPx * mpp;
+        const dNorth = -dyPx * mpp;
+        return {
+          lat: center.lat + dNorth / 111_320,
+          lng:
+            center.lng +
+            dEast / (111_320 * Math.cos((center.lat * Math.PI) / 180)),
+        };
+      },
+    };
+    const click = resolveScreenToLatLng(camera, canvas, 500, 350);
+    expect(click.ok).toBe(true);
+    const screen = resolveLatLngToScreen(camera, canvas, click.point!);
+    expect(screen.ok).toBe(true);
+    expect(screen.clientX!).toBeCloseTo(500, 0);
+    expect(screen.clientY!).toBeCloseTo(350, 0);
+    expect(screen.tried?.some((t) => t.includes("estimate mpp"))).toBe(true);
   });
 });

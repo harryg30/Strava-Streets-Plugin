@@ -144,6 +144,26 @@ export function offsetFromCenter(
   return { lat, lng };
 }
 
+/** Inverse of offsetFromCenter — Anchor peg placement on MRE maps. */
+export function offsetToScreen(
+  center: LatLng,
+  canvas: { left: number; top: number; width: number; height: number },
+  point: LatLng,
+  metersPerPixel: number,
+): { clientX: number; clientY: number } | null {
+  if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) return null;
+  const cosLat = Math.cos((center.lat * Math.PI) / 180);
+  if (!Number.isFinite(cosLat) || Math.abs(cosLat) < 1e-6) return null;
+  const dNorth = (point.lat - center.lat) * 111_320;
+  const dEast = (point.lng - center.lng) * (111_320 * cosLat);
+  const dxPx = dEast / metersPerPixel;
+  const dyPx = -dNorth / metersPerPixel;
+  return {
+    clientX: canvas.left + canvas.width / 2 + dxPx,
+    clientY: canvas.top + canvas.height / 2 + dyPx,
+  };
+}
+
 export type MreCameraLike = {
   getLookAtPoint?: (...args: unknown[]) => unknown;
   getCustomLookAtPoint?: (...args: unknown[]) => unknown;
@@ -228,6 +248,215 @@ export function resolveScreenToLatLng(
       "Have map center but getScaleMetersPerPixel missing/invalid; cannot offset click",
     tried,
   };
+}
+
+export type LatLngToScreenResult = {
+  ok: boolean;
+  clientX?: number;
+  clientY?: number;
+  error?: string;
+  tried?: string[];
+};
+
+/** Place a geo point on screen using map center + meters-per-pixel (MRE peg). */
+export function resolveLatLngToScreen(
+  camera: MreCameraLike,
+  canvas: { left: number; top: number; width: number; height: number },
+  point: LatLng,
+): LatLngToScreenResult {
+  const tried: string[] = [];
+  const tryFn = (
+    label: string,
+    fn: ((...a: unknown[]) => unknown) | undefined,
+    args: unknown[],
+  ): LatLng | null => {
+    tried.push(label);
+    if (typeof fn !== "function") return null;
+    try {
+      return deepFindLatLng(fn.apply(camera, args));
+    } catch {
+      return null;
+    }
+  };
+
+  const center =
+    tryFn("camera.getLookAtPoint()", camera.getLookAtPoint, []) ??
+    tryFn("camera.getCustomLookAtPoint()", camera.getCustomLookAtPoint, []) ??
+    tryFn("camera.getTarget()", camera.getTarget, []);
+
+  if (!center) {
+    return { ok: false, error: "No look-at/target center from camera", tried };
+  }
+
+  tried.push("camera.center+mpp offset inverse");
+  let mpp = NaN;
+  try {
+    mpp = Number(camera.getScaleMetersPerPixel?.());
+  } catch {
+    mpp = NaN;
+  }
+
+  if (!Number.isFinite(mpp) || mpp <= 0) {
+    tried.push("camera.estimate mpp via getLookAtPoint probe");
+    mpp = estimateMetersPerPixel(camera, canvas) ?? NaN;
+  }
+
+  const screen = offsetToScreen(center, canvas, point, mpp);
+  if (screen) {
+    return { ok: true, ...screen, tried };
+  }
+
+  const searched = searchScreenForLatLng(camera, canvas, point);
+  if (searched) {
+    tried.push("camera.getLookAtPoint screen search");
+    return { ok: true, ...searched, tried };
+  }
+
+  return {
+    ok: false,
+    error: "Could not project Anchor to screen (no mpp / look-at probe)",
+    tried,
+  };
+}
+
+/** Derive mpp from how far getLookAtPoint moves for a known pixel offset. */
+export function estimateMetersPerPixel(
+  camera: MreCameraLike,
+  canvas: { left: number; top: number; width: number; height: number },
+  probePx = 80,
+): number | null {
+  if (typeof camera.getLookAtPoint !== "function") return null;
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+
+  const sample = (x: number, y: number): LatLng | null => {
+    try {
+      return (
+        deepFindLatLng(camera.getLookAtPoint!(x, y)) ??
+        deepFindLatLng(camera.getLookAtPoint!([x, y])) ??
+        deepFindLatLng(camera.getLookAtPoint!({ x, y }))
+      );
+    } catch {
+      return null;
+    }
+  };
+
+  const origin =
+    sample(cx, cy) ??
+    (() => {
+      try {
+        return deepFindLatLng(camera.getLookAtPoint!());
+      } catch {
+        return null;
+      }
+    })();
+  if (!origin) return null;
+
+  const east = sample(cx + probePx, cy);
+  if (east && !nearlySame(east, origin)) {
+    const meters = horizontalMeters(origin, east);
+    if (meters > 0) return meters / probePx;
+  }
+
+  const south = sample(cx, cy + probePx);
+  if (south && !nearlySame(south, origin)) {
+    const meters = verticalMeters(origin, south);
+    if (meters > 0) return meters / probePx;
+  }
+
+  return null;
+}
+
+/**
+ * When mpp is unavailable, search getLookAtPoint(x,y) for the screen pixel
+ * closest to the target lat/lng (coarse grid + local refine).
+ */
+export function searchScreenForLatLng(
+  camera: MreCameraLike,
+  canvas: { left: number; top: number; width: number; height: number },
+  target: LatLng,
+): { clientX: number; clientY: number } | null {
+  if (typeof camera.getLookAtPoint !== "function") return null;
+
+  const sample = (x: number, y: number): LatLng | null => {
+    try {
+      return (
+        deepFindLatLng(camera.getLookAtPoint!(x, y)) ??
+        deepFindLatLng(camera.getLookAtPoint!([x, y])) ??
+        deepFindLatLng(camera.getLookAtPoint!({ x, y }))
+      );
+    } catch {
+      return null;
+    }
+  };
+
+  // Sanity: off-center sample must differ from no-arg center, else search is useless.
+  const center = (() => {
+    try {
+      return deepFindLatLng(camera.getLookAtPoint!());
+    } catch {
+      return null;
+    }
+  })();
+  const probe = sample(canvas.width * 0.75, canvas.height * 0.75);
+  if (!center || !probe || nearlySame(center, probe)) return null;
+
+  let best = { x: canvas.width / 2, y: canvas.height / 2, score: Infinity };
+  const stepX = Math.max(24, Math.floor(canvas.width / 12));
+  const stepY = Math.max(24, Math.floor(canvas.height / 12));
+  for (let y = stepY / 2; y < canvas.height; y += stepY) {
+    for (let x = stepX / 2; x < canvas.width; x += stepX) {
+      const ll = sample(x, y);
+      if (!ll) continue;
+      const score = latLngScore(ll, target);
+      if (score < best.score) best = { x, y, score };
+    }
+  }
+
+  // Local refine
+  let { x, y, score } = best;
+  for (const radius of [stepX, Math.ceil(stepX / 2), 8, 3, 1]) {
+    let improved = false;
+    for (let dy = -radius; dy <= radius; dy += radius || 1) {
+      for (let dx = -radius; dx <= radius; dx += radius || 1) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx > canvas.width || ny > canvas.height) continue;
+        const ll = sample(nx, ny);
+        if (!ll) continue;
+        const s = latLngScore(ll, target);
+        if (s < score) {
+          x = nx;
+          y = ny;
+          score = s;
+          improved = true;
+        }
+      }
+    }
+    if (!improved && radius <= 3) break;
+  }
+
+  if (!Number.isFinite(score) || score === Infinity) return null;
+  return { clientX: canvas.left + x, clientY: canvas.top + y };
+}
+
+function horizontalMeters(a: LatLng, b: LatLng): number {
+  const midLat = ((a.lat + b.lat) / 2) * (Math.PI / 180);
+  const dEast = (b.lng - a.lng) * 111_320 * Math.cos(midLat);
+  const dNorth = (b.lat - a.lat) * 111_320;
+  return Math.hypot(dEast, dNorth);
+}
+
+function verticalMeters(a: LatLng, b: LatLng): number {
+  return horizontalMeters(a, b);
+}
+
+function latLngScore(a: LatLng, b: LatLng): number {
+  const midLat = ((a.lat + b.lat) / 2) * (Math.PI / 180);
+  const dEast = (b.lng - a.lng) * Math.cos(midLat);
+  const dNorth = b.lat - a.lat;
+  return dEast * dEast + dNorth * dNorth;
 }
 
 function isValidLatLng(lat: number, lng: number): boolean {

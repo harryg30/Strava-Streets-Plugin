@@ -66,10 +66,14 @@ type MreResponse = {
   type?: string;
   ok?: boolean;
   point?: LatLng;
+  clientX?: number;
+  clientY?: number;
   error?: string;
   methods?: string[];
   tried?: string[];
 };
+
+const ANCHOR_PEG_ID = "ssp-anchor-peg";
 
 /**
  * Strava Host Page adapter.
@@ -96,6 +100,17 @@ export class StravaHostPage implements HostPage {
     null;
   private dragExceeded = false;
   private mapClickButton: MapClickButton = "right";
+  private anchorPoint: LatLng | null = null;
+  /** Screen position of the Map Click that produced the current Anchor (MRE peg). */
+  private lastClickScreen: {
+    point: LatLng;
+    clientX: number;
+    clientY: number;
+  } | null = null;
+  private pegEl: HTMLElement | null = null;
+  private pegMode: "fixed" | null = null;
+  private pegTrackUntil = 0;
+  private pegTrackRaf: number | null = null;
 
   isRouteBuilder(): boolean {
     return isRouteBuilderUrl(window.location.pathname);
@@ -103,6 +118,29 @@ export class StravaHostPage implements HostPage {
 
   setMapClickButton(button: MapClickButton): void {
     this.mapClickButton = button;
+  }
+
+  setAnchorMarker(point: LatLng | null): void {
+    this.anchorPoint = point ? { ...point } : null;
+    if (!this.anchorPoint) {
+      this.lastClickScreen = null;
+      this.removePeg();
+      return;
+    }
+    // Place immediately from the Map Click's screen coords — do not wait on
+    // MRE lat→screen (often missing mpp; awaiting it left the peg invisible).
+    if (this.lastClickScreen) {
+      this.placeFixedPeg(
+        this.lastClickScreen.clientX,
+        this.lastClickScreen.clientY,
+      );
+    } else {
+      console.warn(
+        "[Strava Streets] Anchor peg: no Map Click screen coords; placing at viewport center",
+      );
+      this.placeFixedPeg(window.innerWidth / 2, window.innerHeight / 2);
+    }
+    void this.refinePegFromMre();
   }
 
   onRouteBuilderChange(listener: RouteBuilderListener): () => void {
@@ -205,6 +243,13 @@ export class StravaHostPage implements HostPage {
     root.addEventListener("click", this.onMapDomClick, true);
     root.addEventListener("contextmenu", this.onMapContextMenu, true);
     this.mapAttached = true;
+    this.wirePegRefresh(root);
+    if (this.anchorPoint && this.lastClickScreen) {
+      this.placeFixedPeg(
+        this.lastClickScreen.clientX,
+        this.lastClickScreen.clientY,
+      );
+    }
     void this.ensureMreBridge().catch(() => {
       /* miss path still reports via DOM click */
     });
@@ -212,6 +257,7 @@ export class StravaHostPage implements HostPage {
 
   private detachMapRoot(): void {
     if (!this.mapAttached || !this.mapRoot) return;
+    this.unwirePegRefresh();
     this.mapRoot.removeEventListener("pointerdown", this.onMapPointerDown, true);
     this.mapRoot.removeEventListener("pointermove", this.onMapPointerMove, true);
     this.mapRoot.removeEventListener("click", this.onMapDomClick, true);
@@ -220,6 +266,7 @@ export class StravaHostPage implements HostPage {
     this.mapAttached = false;
     this.pointerDown = null;
     this.dragExceeded = false;
+    this.removePeg();
   }
 
   private onMapPointerDown = (event: PointerEvent): void => {
@@ -297,6 +344,7 @@ export class StravaHostPage implements HostPage {
   ): Promise<void> {
     const leafletPoint = latLngFromLeaflet(event, this.mapRoot);
     if (leafletPoint) {
+      this.rememberClickScreen(leafletPoint, event.clientX, event.clientY);
       for (const l of this.mapListeners) l(leafletPoint, button);
       return;
     }
@@ -309,6 +357,11 @@ export class StravaHostPage implements HostPage {
         clientY: event.clientY,
       });
       if (response.ok && response.point) {
+        this.rememberClickScreen(
+          response.point,
+          event.clientX,
+          event.clientY,
+        );
         for (const l of this.mapListeners) l(response.point, button);
         return;
       }
@@ -331,8 +384,185 @@ export class StravaHostPage implements HostPage {
     }
   }
 
+  private rememberClickScreen(
+    point: LatLng,
+    clientX: number,
+    clientY: number,
+  ): void {
+    this.lastClickScreen = { point: { ...point }, clientX, clientY };
+  }
+
   private emitMiss(reason: string): void {
     for (const l of this.missListeners) l(reason);
+  }
+
+  private wirePegRefresh(root: HTMLElement): void {
+    root.addEventListener("wheel", this.onPegMapInteraction, {
+      passive: true,
+      capture: true,
+    });
+    root.addEventListener("pointerdown", this.onPegMapInteraction, true);
+    root.addEventListener("pointermove", this.onPegPointerMove, true);
+    root.addEventListener("pointerup", this.onPegMapInteraction, true);
+    window.addEventListener("wheel", this.onPegMapInteraction, {
+      passive: true,
+      capture: true,
+    });
+    window.addEventListener("resize", this.onPegMapInteraction);
+  }
+
+  private unwirePegRefresh(): void {
+    if (this.mapRoot) {
+      this.mapRoot.removeEventListener("wheel", this.onPegMapInteraction, true);
+      this.mapRoot.removeEventListener(
+        "pointerdown",
+        this.onPegMapInteraction,
+        true,
+      );
+      this.mapRoot.removeEventListener(
+        "pointermove",
+        this.onPegPointerMove,
+        true,
+      );
+      this.mapRoot.removeEventListener(
+        "pointerup",
+        this.onPegMapInteraction,
+        true,
+      );
+    }
+    window.removeEventListener("wheel", this.onPegMapInteraction, true);
+    window.removeEventListener("resize", this.onPegMapInteraction);
+    this.stopPegTracking();
+  }
+
+  private onPegMapInteraction = (): void => {
+    this.startPegTracking(600);
+  };
+
+  private onPegPointerMove = (event: PointerEvent): void => {
+    // Pan/drag while a button is down — keep peg glued during map drag.
+    if (event.buttons === 0) return;
+    this.startPegTracking(400);
+  };
+
+  /** Reproject Anchor→screen for a burst of frames (zoom animations). */
+  private startPegTracking(ms: number): void {
+    if (!this.anchorPoint) return;
+    const until = performance.now() + ms;
+    if (until > this.pegTrackUntil) this.pegTrackUntil = until;
+    if (this.pegTrackRaf != null) return;
+    const tick = () => {
+      this.pegTrackRaf = null;
+      void this.refinePegFromMre();
+      if (performance.now() < this.pegTrackUntil && this.anchorPoint) {
+        this.pegTrackRaf = requestAnimationFrame(tick);
+      }
+    };
+    this.pegTrackRaf = requestAnimationFrame(tick);
+  }
+
+  private stopPegTracking(): void {
+    this.pegTrackUntil = 0;
+    if (this.pegTrackRaf != null) {
+      cancelAnimationFrame(this.pegTrackRaf);
+      this.pegTrackRaf = null;
+    }
+  }
+
+  private removePeg(): void {
+    this.stopPegTracking();
+    if (this.pegEl) {
+      this.pegEl.remove();
+      this.pegEl = null;
+    }
+    this.pegMode = null;
+  }
+
+  private ensurePegEl(mode: "fixed"): HTMLElement {
+    if (this.pegEl && this.pegMode === mode) return this.pegEl;
+    this.removePeg();
+    const el = document.createElement("div");
+    el.id = ANCHOR_PEG_ID;
+    el.className = "ssp-anchor-peg ssp-anchor-peg--fixed";
+    el.setAttribute("aria-hidden", "true");
+    el.innerHTML = `<div class="ssp-anchor-peg__pin"></div>`;
+    // Inline styles so the peg is visible even if content.css failed to apply.
+    el.style.cssText = [
+      "position:fixed",
+      "z-index:2147483645",
+      "width:20px",
+      "height:28px",
+      "margin-left:-10px",
+      "margin-top:-28px",
+      "pointer-events:none",
+      "display:block",
+    ].join(";");
+    const pin = el.firstElementChild as HTMLElement | null;
+    if (pin) {
+      pin.style.cssText = [
+        "position:absolute",
+        "left:1px",
+        "top:0",
+        "width:18px",
+        "height:18px",
+        "border-radius:50% 50% 50% 0",
+        "background:#fc4c02",
+        "border:2px solid #fff",
+        "box-shadow:0 1px 4px rgba(0,0,0,0.45)",
+        "transform:rotate(-45deg)",
+        "box-sizing:border-box",
+      ].join(";");
+    }
+    this.pegEl = el;
+    this.pegMode = mode;
+    return el;
+  }
+
+  private placeFixedPeg(clientX: number, clientY: number): void {
+    const el = this.ensurePegEl("fixed");
+    // body beats some full-bleed canvas stacking quirks vs documentElement
+    const parent = document.body ?? document.documentElement;
+    if (el.parentElement !== parent) {
+      parent.appendChild(el);
+    }
+    el.style.left = `${Math.round(clientX)}px`;
+    el.style.top = `${Math.round(clientY)}px`;
+    el.hidden = false;
+    el.style.display = "block";
+  }
+
+  /** Try MRE lat→screen to keep the peg glued on pan; never required for first paint. */
+  private async refinePegFromMre(): Promise<void> {
+    const point = this.anchorPoint;
+    if (!point) return;
+
+    const fromBridge = await this.tryMreLatLngToScreen(point);
+    if (fromBridge) {
+      this.placeFixedPeg(fromBridge.clientX, fromBridge.clientY);
+    }
+  }
+
+  private async tryMreLatLngToScreen(
+    point: LatLng,
+  ): Promise<{ clientX: number; clientY: number } | null> {
+    try {
+      await this.ensureMreBridge();
+      const response = await this.callMre({
+        type: "latLngToScreen",
+        lat: point.lat,
+        lng: point.lng,
+      });
+      if (
+        response.ok &&
+        typeof response.clientX === "number" &&
+        typeof response.clientY === "number"
+      ) {
+        return { clientX: response.clientX, clientY: response.clientY };
+      }
+    } catch {
+      /* fall through */
+    }
+    return null;
   }
 
   private ensureMessageHandler(): void {
@@ -476,6 +706,13 @@ function latLngFromLeaflet(
 
 type LeafletMapLike = {
   mouseEventToLatLng: (e: MouseEvent) => { lat: number; lng: number };
+  latLngToContainerPoint?: (ll: { lat: number; lng: number }) => {
+    x: number;
+    y: number;
+  };
+  getContainer?: () => HTMLElement;
+  on?: (types: string, fn: () => void) => void;
+  off?: (types: string, fn: () => void) => void;
 };
 
 function findLeafletMap(mapRoot: HTMLElement | null): LeafletMapLike | null {
