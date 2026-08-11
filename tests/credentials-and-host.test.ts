@@ -4,6 +4,7 @@ import { DeniedCredentialSource } from "../src/adapters/credentials/denied.js";
 import { DevKeyOverrideCredentialSource } from "../src/adapters/credentials/dev-key-override.js";
 import {
   exceedsDragThreshold,
+  finishPointerGestureState,
   isRouteBuilderUrl,
   MAP_DRAG_THRESHOLD_PX,
 } from "../src/adapters/host-page/strava-host-page.js";
@@ -70,5 +71,47 @@ describe("Map drag vs Map Click", () => {
     expect(
       exceedsDragThreshold({ x: 10, y: 10 }, { x: 10, y: 10 + MAP_DRAG_THRESHOLD_PX }),
     ).toBe(true);
+  });
+});
+
+describe("Map Click Button gesture finish", () => {
+  it("clears pointer state when finishing a gesture", () => {
+    const { dragged, next } = finishPointerGestureState(
+      {
+        pointerDown: { x: 10, y: 10, button: "right" },
+        dragExceeded: false,
+      },
+      12,
+      10,
+    );
+    expect(dragged).toBe(false);
+    expect(next).toEqual({ pointerDown: null, dragExceeded: false });
+  });
+
+  it("treats prior dragExceeded as dragged and still clears", () => {
+    const { dragged, next } = finishPointerGestureState(
+      {
+        pointerDown: { x: 0, y: 0, button: "left" },
+        dragExceeded: true,
+      },
+      0,
+      0,
+    );
+    expect(dragged).toBe(true);
+    expect(next.pointerDown).toBeNull();
+  });
+
+  it("requireButton ignores mismatch without counting as drag from that start", () => {
+    const { dragged, next } = finishPointerGestureState(
+      {
+        pointerDown: { x: 0, y: 0, button: "left" },
+        dragExceeded: false,
+      },
+      100,
+      100,
+      { requireButton: "right" },
+    );
+    expect(dragged).toBe(false);
+    expect(next.pointerDown).toBeNull();
   });
 });

@@ -26,6 +26,36 @@ export function exceedsDragThreshold(
   return dx * dx + dy * dy >= thresholdPx * thresholdPx;
 }
 
+export type PointerGestureState = {
+  pointerDown: { x: number; y: number; button: MapClickButton } | null;
+  dragExceeded: boolean;
+};
+
+/**
+ * Clears pointer tracking after a click/contextmenu.
+ * Returns whether the gesture was a drag (caller should ignore the click).
+ */
+export function finishPointerGestureState(
+  state: PointerGestureState,
+  clientX: number,
+  clientY: number,
+  options?: { requireButton?: MapClickButton },
+): { dragged: boolean; next: PointerGestureState } {
+  const start = state.pointerDown;
+  const buttonOk =
+    options?.requireButton === undefined ||
+    start?.button === options.requireButton;
+  const dragged =
+    state.dragExceeded ||
+    (start != null &&
+      buttonOk &&
+      exceedsDragThreshold(start, { x: clientX, y: clientY }));
+  return {
+    dragged,
+    next: { pointerDown: null, dragExceeded: false },
+  };
+}
+
 type MapClickListener = (point: LatLng, button: MapClickButton) => void;
 type MapClickMissListener = (reason: string) => void;
 type RouteBuilderListener = (active: boolean) => void;
@@ -213,42 +243,53 @@ export class StravaHostPage implements HostPage {
 
   private onMapDomClick = (event: MouseEvent): void => {
     if (this.mapListeners.size === 0) return;
-
-    const start = this.pointerDown;
-    const dragged =
-      this.dragExceeded ||
-      (start != null &&
-        exceedsDragThreshold(start, { x: event.clientX, y: event.clientY }));
-
-    this.pointerDown = null;
-    this.dragExceeded = false;
-
-    if (dragged) return;
-
+    if (this.finishPointerGesture(event.clientX, event.clientY)) return;
     void this.resolveClick(event, "left");
   };
 
   private onMapContextMenu = (event: MouseEvent): void => {
     if (this.mapListeners.size === 0) return;
     // Only consume right-click when it is the active Map Click Button.
-    if (this.mapClickButton !== "right") return;
+    // Always clear gesture state so a discarded right-click cannot poison
+    // the next left click as a drag (e.g. Map Click Button = left).
+    if (this.mapClickButton !== "right") {
+      this.pointerDown = null;
+      this.dragExceeded = false;
+      return;
+    }
 
-    const start = this.pointerDown;
-    const dragged =
-      this.dragExceeded ||
-      (start != null &&
-        start.button === "right" &&
-        exceedsDragThreshold(start, { x: event.clientX, y: event.clientY }));
-
-    this.pointerDown = null;
-    this.dragExceeded = false;
-
-    if (dragged) return;
+    if (
+      this.finishPointerGesture(event.clientX, event.clientY, {
+        requireButton: "right",
+      })
+    ) {
+      return;
+    }
 
     event.preventDefault();
     event.stopPropagation();
     void this.resolveClick(event, "right");
   };
+
+  /** Clears pointer tracking; returns true when the gesture was a drag (ignore click). */
+  private finishPointerGesture(
+    clientX: number,
+    clientY: number,
+    options?: { requireButton?: MapClickButton },
+  ): boolean {
+    const { dragged, next } = finishPointerGestureState(
+      {
+        pointerDown: this.pointerDown,
+        dragExceeded: this.dragExceeded,
+      },
+      clientX,
+      clientY,
+      options,
+    );
+    this.pointerDown = next.pointerDown;
+    this.dragExceeded = next.dragExceeded;
+    return dragged;
+  }
 
   private async resolveClick(
     event: MouseEvent,
