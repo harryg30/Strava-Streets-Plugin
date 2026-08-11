@@ -24,6 +24,13 @@ export type StreetViewCredential = {
   apiKey: string;
 };
 
+/** Access Service Mint denials (+ client-only unavailable). */
+export type DenialCode =
+  | "unauthenticated"
+  | "membership_required"
+  | "quota_exceeded"
+  | "unavailable";
+
 export type CredentialOk = {
   status: "ok";
   credential: StreetViewCredential;
@@ -31,16 +38,32 @@ export type CredentialOk = {
 
 export type CredentialDenied = {
   status: "denied";
+  code: DenialCode;
+  /** Rider-facing copy for Pano Window / Popup. */
   reason: string;
+  /** Set when code === "quota_exceeded" when Access Service provides it. */
+  resetAt?: Date;
 };
 
 export type CredentialResult = CredentialOk | CredentialDenied;
+
+/**
+ * Extension Popup account row. getAccount() never Mints (Quota Locality).
+ */
+export type AccountSnapshot =
+  | { kind: "dev_override" }
+  | { kind: "signed_out" }
+  | { kind: "ready" }
+  | {
+      kind: "denied";
+      code: DenialCode;
+      reason: string;
+      resetAt?: Date;
+    };
 
 export type CoverageStatus = "covered" | "coverage_gap";
 
 /** Which mouse button performs Map Click (sets the Anchor Point). */
 export type MapClickButton = "left" | "right";
-
-export type AccountPlaceholder = "dev_build" | "not_connected";
 
 export type BuildProfile = "dev" | "store";

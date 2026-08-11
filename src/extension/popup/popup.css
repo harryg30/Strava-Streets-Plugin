@@ -72,6 +72,22 @@ label.row {
   color: var(--muted);
 }
 
+.connect {
+  margin-top: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.connect:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
 input[type="checkbox"] {
   accent-color: var(--accent);
   width: 16px;

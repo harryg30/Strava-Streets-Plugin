@@ -1,4 +1,5 @@
 import type {
+  AccountSnapshot,
   CoverageStatus,
   CredentialResult,
   LatLng,
@@ -18,11 +19,21 @@ export class FakeCredentialSource implements CredentialSource {
     status: "ok",
     credential: { apiKey: "test-key" },
   };
+  account: AccountSnapshot = { kind: "signed_out" };
   calls = 0;
+  beginLoginCalls = 0;
 
   async getStreetViewCredentials(): Promise<CredentialResult> {
     this.calls += 1;
     return this.next;
+  }
+
+  async getAccount(): Promise<AccountSnapshot> {
+    return this.account;
+  }
+
+  async beginLogin(): Promise<void> {
+    this.beginLoginCalls += 1;
   }
 }
 

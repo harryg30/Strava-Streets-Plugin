@@ -1,6 +1,6 @@
 import type { BuildProfile } from "../../domain/types.js";
 import type { CredentialSource } from "../../ports/index.js";
-import { DeniedCredentialSource } from "./denied.js";
+import { AccessCredentialSource } from "./access-credential-source.js";
 import { DevKeyOverrideCredentialSource } from "./dev-key-override.js";
 
 /**
@@ -14,7 +14,15 @@ export function createCredentialSourceForProfile(
   if (profile === "dev") {
     return new DevKeyOverrideCredentialSource("test-key");
   }
-  return new DeniedCredentialSource(
-    "Connect via Access Service (coming soon). Store builds do not include Dev Key Override.",
-  );
+  return new AccessCredentialSource({
+    transport: {
+      async mint() {
+        return { ok: false, denial: { kind: "unauthenticated" } };
+      },
+    },
+    browserSession: {
+      async openAccessLogin() {},
+    },
+    accessOrigin: "http://127.0.0.1:8787",
+  });
 }

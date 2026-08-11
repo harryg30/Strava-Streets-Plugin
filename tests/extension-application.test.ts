@@ -224,7 +224,11 @@ describe("ExtensionApplication seams", () => {
     await flush();
     expect(streetView.lastSuccessfulPoint).toEqual({ lat: 1, lng: 1 });
 
-    credentials.next = { status: "denied", reason: "quota exceeded" };
+    credentials.next = {
+      status: "denied",
+      code: "quota_exceeded",
+      reason: "quota exceeded",
+    };
     host.emitMapClick({ lat: 9, lng: 9 });
     await flush();
 

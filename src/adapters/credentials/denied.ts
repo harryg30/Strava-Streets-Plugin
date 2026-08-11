@@ -1,9 +1,12 @@
-import type { CredentialResult } from "../../domain/types.js";
+import type {
+  AccountSnapshot,
+  CredentialResult,
+} from "../../domain/types.js";
 import type { CredentialSource } from "../../ports/index.js";
 
 /**
- * Store/production credential stub until Access Service lands (#9/#11).
- * No Dev Key Override path — master key never ships in Store builds.
+ * Static deny Adapter — transitional / misconfig only.
+ * Store Phase product path is AccessCredentialSource via background proxy.
  */
 export class DeniedCredentialSource implements CredentialSource {
   constructor(
@@ -11,6 +14,16 @@ export class DeniedCredentialSource implements CredentialSource {
   ) {}
 
   async getStreetViewCredentials(): Promise<CredentialResult> {
-    return { status: "denied", reason: this.reason };
+    return { status: "denied", code: "unavailable", reason: this.reason };
   }
+
+  async getAccount(): Promise<AccountSnapshot> {
+    return {
+      kind: "denied",
+      code: "unavailable",
+      reason: this.reason,
+    };
+  }
+
+  async beginLogin(): Promise<void> {}
 }

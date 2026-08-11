@@ -1,4 +1,5 @@
 import type {
+  AccountSnapshot,
   CoverageStatus,
   CredentialResult,
   LatLng,
@@ -8,11 +9,15 @@ import type {
 } from "../domain/types.js";
 
 /**
- * Credential source port.
- * Dev Key Override (#8) and Access Service (#11) both implement this.
+ * Credential source Seam.
+ * Dev Key Override and Access Service Adapters both implement this.
+ * getStreetViewCredentials is the only Mint trigger; getAccount never Mints.
  */
 export interface CredentialSource {
   getStreetViewCredentials(): Promise<CredentialResult>;
+  getAccount(): Promise<AccountSnapshot>;
+  /** Opens Access OAuth start (no-op under Dev Key Override). */
+  beginLogin(): Promise<void>;
 }
 
 /**
