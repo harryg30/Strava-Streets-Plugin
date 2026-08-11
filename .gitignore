@@ -6,3 +6,5 @@ dist/
 .DS_Store
 coverage/
 .scratch/
+learn/
+access-service/node_modules/

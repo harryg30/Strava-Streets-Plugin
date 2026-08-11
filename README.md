@@ -2,9 +2,11 @@
 
 Chrome Manifest V3 extension that shows a view-only Google Street View **Pano Window** on Strava’s **Route Builder**. Settings live in the **Extension Popup**. Domain language: [`CONTEXT.md`](CONTEXT.md). Design decisions: [`docs/adr/`](docs/adr/).
 
-## Status (#8)
+## Status
 
-Map Click → Pano Window with **Dev Key Override** (sideload/dev). Access Service (#9/#11), Tip Follow behavior (#10), and real account wiring (#12) are follow-ups.
+- **#8** Map Click → Pano Window with **Dev Key Override** is on `main`.
+- **#9** Access Service HTTP API: see [`access-service/`](access-service/).
+- Tip Follow behavior (#10) and real account wiring (#12) are follow-ups.
 
 ## Setup
 
@@ -34,6 +36,16 @@ npm run build:store
 
 Route Builder is **only** `https://www.strava.com/maps/*` — content script and Host Page matching use that pattern; elsewhere the extension does not inject / is a silent no-op.
 
+## Access Service (#9)
+
+```bash
+cd access-service
+npm install
+npm test
+```
+
+Mint surface: `POST /v1/credentials/mint` after Google OAuth callback sets a session cookie. Details in [`access-service/README.md`](access-service/README.md).
+
 ## Layout
 
 | Path | Role |
@@ -42,6 +54,7 @@ Route Builder is **only** `https://www.strava.com/maps/*` — content script and
 | `src/ports/` | Host Page, Credential source, Street View surface, Settings |
 | `src/adapters/` | Strava Host Page, Maps JS surface (isolated-world RPC), Dev Key Override / Store deny, chrome.storage |
 | `src/extension/` | MV3 background, content script, popup; **page-world** injectables (`maps-page-bridge`, `host-mre-bridge`) that cannot use `chrome.*` |
+| `access-service/` | Access Service Module + HTTP Adapter (Mint, OAuth, Quota) |
 | `tests/` | Seam tests with fakes (no Strava DOM / Maps SDK internals); unit tests OK for pure helpers |
 | `scripts/build.mjs` | esbuild; injects `.env` key into **dev** builds only |
 
