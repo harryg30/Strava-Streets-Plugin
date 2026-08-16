@@ -3,7 +3,6 @@ import type { MapClickButton, PanoLayout } from "../../domain/types.js";
 import type { SettingsStore } from "../../ports/index.js";
 
 const KEYS = {
-  featureEnabled: "ssp.featureEnabled",
   mapClickButton: "ssp.mapClickButton",
   panoLayout: "ssp.panoLayout",
 } as const;
@@ -21,15 +20,6 @@ function parseMapClickButton(value: unknown): MapClickButton {
 export class ChromeSettingsStore implements SettingsStore {
   private listeners = new Set<ChangeListener>();
   private watching = false;
-
-  async getFeatureEnabled(): Promise<boolean> {
-    const v = await this.get(KEYS.featureEnabled);
-    return v === undefined ? true : Boolean(v);
-  }
-
-  async setFeatureEnabled(enabled: boolean): Promise<void> {
-    await this.set(KEYS.featureEnabled, enabled);
-  }
 
   async getMapClickButton(): Promise<MapClickButton> {
     const v = await this.get(KEYS.mapClickButton);
@@ -72,7 +62,6 @@ export class ChromeSettingsStore implements SettingsStore {
 
   /** Defaults used when storage is empty — exported for tests/docs. */
   static defaults = {
-    featureEnabled: true,
     mapClickButton: "right" as MapClickButton,
     panoLayout: DEFAULT_PANO_LAYOUT,
   };
@@ -84,7 +73,7 @@ export class ChromeSettingsStore implements SettingsStore {
     this.watching = true;
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "sync" && area !== "local") return;
-      if (KEYS.featureEnabled in changes || KEYS.mapClickButton in changes) {
+      if (KEYS.mapClickButton in changes) {
         for (const l of this.listeners) l();
       }
     });

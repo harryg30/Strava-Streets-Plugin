@@ -60,7 +60,6 @@ Mint surface: `POST /v1/credentials/mint` after Google OAuth (`GET /v1/auth/goog
 
 ## Popup
 
-- Master **Street View / Pano** on/off
 - **Set Anchor with** Left click / Right click (default Right; persisted)
 - Account row: **Dev build** (dev profile) or **Not connected** (store profile)
 

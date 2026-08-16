@@ -27,11 +27,8 @@ import { StravaHostPage } from "../src/adapters/host-page/strava-host-page.ts";
 import { ExtensionApplication } from "../src/core/extension-application.ts";
 
 class MemSettings {
-  featureEnabled = true;
   mapClickButton: "left" | "right" = "left";
   listeners = new Set<() => void>();
-  async getFeatureEnabled() { return this.featureEnabled; }
-  async setFeatureEnabled(v: boolean) { this.featureEnabled = v; this.notify(); }
   async getMapClickButton() { return this.mapClickButton; }
   async setMapClickButton(b: "left" | "right") { this.mapClickButton = b; this.notify(); }
   async getPanoLayout() { return null; }

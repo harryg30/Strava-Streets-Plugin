@@ -35,6 +35,8 @@ function loadEnvFile() {
 
 const env = loadEnvFile();
 const mapsKey = profile === "dev" ? env.GOOGLE_MAPS_API_KEY ?? "" : "";
+const accessOrigin =
+  env.ACCESS_ORIGIN?.trim() || "http://127.0.0.1:8787";
 
 if (profile === "dev" && !mapsKey) {
   console.warn(
@@ -48,6 +50,7 @@ fs.mkdirSync(dist, { recursive: true });
 const define = {
   __BUILD_PROFILE__: JSON.stringify(profile),
   __DEV_MAPS_API_KEY__: JSON.stringify(mapsKey),
+  __ACCESS_ORIGIN__: JSON.stringify(accessOrigin),
 };
 
 const credentialActive =
@@ -116,7 +119,11 @@ const manifest = {
   description:
     "Street View beside Strava’s Route Builder — view-only Pano Window for route context.",
   permissions: ["storage"],
-  host_permissions: ["https://www.strava.com/maps/*"],
+  host_permissions: [
+    "https://www.strava.com/maps/*",
+    // Access Service Mint + OAuth (cookies stay on this origin).
+    `${accessOrigin.replace(/\/$/, "")}/*`,
+  ],
   action: {
     default_popup: "popup.html",
     default_title: "Strava Streets",

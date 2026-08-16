@@ -1,4 +1,5 @@
 import type {
+  AccountSnapshot,
   CoverageStatus,
   CredentialResult,
   LatLng,
@@ -18,11 +19,21 @@ export class FakeCredentialSource implements CredentialSource {
     status: "ok",
     credential: { apiKey: "test-key" },
   };
+  account: AccountSnapshot = { kind: "signed_out" };
   calls = 0;
+  beginLoginCalls = 0;
 
   async getStreetViewCredentials(): Promise<CredentialResult> {
     this.calls += 1;
     return this.next;
+  }
+
+  async getAccount(): Promise<AccountSnapshot> {
+    return this.account;
+  }
+
+  async beginLogin(): Promise<void> {
+    this.beginLoginCalls += 1;
   }
 }
 
@@ -160,19 +171,9 @@ export class FakeStreetViewSurface implements StreetViewSurface {
 }
 
 export class FakeSettingsStore implements SettingsStore {
-  featureEnabled = true;
   mapClickButton: MapClickButton = "right";
   panoLayout: PanoLayout | null = null;
   private listeners = new Set<() => void>();
-
-  async getFeatureEnabled(): Promise<boolean> {
-    return this.featureEnabled;
-  }
-
-  async setFeatureEnabled(enabled: boolean): Promise<void> {
-    this.featureEnabled = enabled;
-    this.notify();
-  }
 
   async getMapClickButton(): Promise<MapClickButton> {
     return this.mapClickButton;

@@ -43,27 +43,7 @@ describe("ExtensionApplication seams", () => {
     expect(streetView.shownAnchors).toHaveLength(0);
   });
 
-  it("feature off on Route Builder: no Pano and no Map Click listeners", async () => {
-    app.stop();
-    settings.featureEnabled = false;
-    streetView = new FakeStreetViewSurface();
-    host = new FakeHostPage();
-    app = new ExtensionApplication({
-      hostPage: host,
-      credentials,
-      streetView,
-      settings,
-    });
-    await app.start();
-
-    host.setRouteBuilder(true);
-    await flush();
-
-    expect(streetView.isMounted()).toBe(false);
-    expect(host.mapClickSubscriptionCount).toBe(0);
-  });
-
-  it("feature on: mounts Pano with remembered layout on Route Builder", async () => {
+  it("mounts Pano with remembered layout on Route Builder", async () => {
     settings.panoLayout = { x: 40, y: 60, width: 500, height: 360 };
     host.setRouteBuilder(true);
     await flush();
@@ -91,7 +71,7 @@ describe("ExtensionApplication seams", () => {
     expect(app.getState().onRouteBuilder).toBe(false);
   });
 
-  it("returning with feature on restores Pano with remembered layout", async () => {
+  it("returning to Route Builder restores Pano with remembered layout", async () => {
     settings.panoLayout = { x: 10, y: 20, width: 400, height: 300 };
     host.setRouteBuilder(true);
     await flush();
@@ -205,18 +185,6 @@ describe("ExtensionApplication seams", () => {
     expect(settings.panoLayout).toEqual(next);
   });
 
-  it("turning feature off tears down Pano and Map Click listeners", async () => {
-    host.setRouteBuilder(true);
-    await flush();
-    expect(streetView.isMounted()).toBe(true);
-
-    await settings.setFeatureEnabled(false);
-    await flush();
-
-    expect(streetView.isMounted()).toBe(false);
-    expect(host.mapClickSubscriptionCount).toBe(0);
-  });
-
   it("credential denial surfaces a status message without blanking", async () => {
     host.setRouteBuilder(true);
     await flush();
@@ -224,12 +192,40 @@ describe("ExtensionApplication seams", () => {
     await flush();
     expect(streetView.lastSuccessfulPoint).toEqual({ lat: 1, lng: 1 });
 
-    credentials.next = { status: "denied", reason: "quota exceeded" };
+    credentials.next = {
+      status: "denied",
+      code: "quota_exceeded",
+      reason: "quota exceeded",
+    };
     host.emitMapClick({ lat: 9, lng: 9 });
     await flush();
 
     expect(streetView.statusMessage).toBe("quota exceeded");
     expect(streetView.lastSuccessfulPoint).toEqual({ lat: 1, lng: 1 });
+    expect(streetView.blanked).toBe(false);
+  });
+
+  it("membership_required denial blocks Street View load and keeps prior Pano", async () => {
+    host.setRouteBuilder(true);
+    await flush();
+    host.emitMapClick({ lat: 1, lng: 1 });
+    await flush();
+    expect(streetView.lastSuccessfulPoint).toEqual({ lat: 1, lng: 1 });
+    const shownBefore = streetView.shownAnchors.length;
+
+    credentials.next = {
+      status: "denied",
+      code: "membership_required",
+      reason: "Street View access is not available for this account.",
+    };
+    host.emitMapClick({ lat: 9, lng: 9 });
+    await flush();
+
+    expect(streetView.statusMessage).toBe(
+      "Street View access is not available for this account.",
+    );
+    expect(streetView.lastSuccessfulPoint).toEqual({ lat: 1, lng: 1 });
+    expect(streetView.shownAnchors).toHaveLength(shownBefore);
     expect(streetView.blanked).toBe(false);
   });
 

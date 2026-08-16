@@ -27,7 +27,6 @@ export class ExtensionApplication {
   private unsubs: Array<() => void> = [];
   private mapClickUnsub: (() => void) | null = null;
   private onRouteBuilder = false;
-  private featureEnabled = false;
   private mapClickButton: MapClickButton = "right";
   private userDismissed = false;
   private lastSuccessfulAnchor: LatLng | null = null;
@@ -45,7 +44,6 @@ export class ExtensionApplication {
   getState() {
     return {
       onRouteBuilder: this.onRouteBuilder,
-      featureEnabled: this.featureEnabled,
       mapClickButton: this.mapClickButton,
       panoMounted: this.streetView.isMounted(),
       userDismissed: this.userDismissed,
@@ -60,7 +58,6 @@ export class ExtensionApplication {
     if (this.started) return;
     this.started = true;
 
-    this.featureEnabled = await this.settings.getFeatureEnabled();
     this.mapClickButton = await this.settings.getMapClickButton();
     this.hostPage.setMapClickButton(this.mapClickButton);
 
@@ -93,7 +90,7 @@ export class ExtensionApplication {
       this.unsubs.push(
         this.hostPage.onMapClickMiss((reason) => {
           void (async () => {
-            if (!this.onRouteBuilder || !this.featureEnabled) return;
+            if (!this.onRouteBuilder) return;
             await this.ensurePanoMounted();
             this.streetView.setStatusMessage(reason);
           })();
@@ -114,29 +111,6 @@ export class ExtensionApplication {
   private async refreshFromSettings(): Promise<void> {
     this.mapClickButton = await this.settings.getMapClickButton();
     this.hostPage.setMapClickButton(this.mapClickButton);
-
-    const enabled = await this.settings.getFeatureEnabled();
-    if (enabled === this.featureEnabled) return;
-    this.featureEnabled = enabled;
-
-    if (!this.onRouteBuilder) return;
-
-    if (!enabled) {
-      this.userDismissed = false;
-      this.detachMapClick();
-      this.tearDownPano();
-      return;
-    }
-
-    this.userDismissed = false;
-    await this.ensurePanoMounted();
-    try {
-      this.attachMapClick();
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Map click wiring failed";
-      this.streetView.setStatusMessage(message);
-    }
   }
 
   private async handleRouteBuilderChange(active: boolean): Promise<void> {
@@ -145,12 +119,6 @@ export class ExtensionApplication {
     if (!active) {
       // Leaving Route Builder: tear down; clear session dismiss so return restores.
       this.userDismissed = false;
-      this.detachMapClick();
-      this.tearDownPano();
-      return;
-    }
-
-    if (!this.featureEnabled) {
       this.detachMapClick();
       this.tearDownPano();
       return;
@@ -202,7 +170,7 @@ export class ExtensionApplication {
   }
 
   private async applyAnchor(point: LatLng): Promise<void> {
-    if (!this.onRouteBuilder || !this.featureEnabled) return;
+    if (!this.onRouteBuilder) return;
 
     this.userDismissed = false;
     await this.ensurePanoMounted();

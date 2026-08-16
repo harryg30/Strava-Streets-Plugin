@@ -13,10 +13,6 @@
     </header>
 
     <section class="controls" aria-label="Feature controls">
-      <label class="row">
-        <span>Street View / Pano</span>
-        <input type="checkbox" id="feature-enabled" />
-      </label>
       <fieldset class="row map-click-button">
         <legend>Set Anchor with</legend>
         <div class="segmented" role="radiogroup" aria-label="Map Click Button">
@@ -40,6 +36,9 @@
         <span>Account</span>
         <span id="account-status" class="muted">Not connected</span>
       </div>
+      <button type="button" id="account-connect" class="connect" hidden>
+        Connect with Google
+      </button>
     </section>
 
     <script type="module" src="popup.js"></script>

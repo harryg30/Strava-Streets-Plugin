@@ -13,3 +13,7 @@ Dev Key Override is a gitignored repo-level `.env` key injected at sideload/dev 
 ## Module shape (#9 / #14)
 
 Access is an in-process Module with Interface `login` + `mint`. Google Auth is a separate Module with Interface `begin` + `complete` (authorize URL, CSRF `state`, code exchange, verified `id_token` → `sub`). HTTP is a thin Adapter (cookies, redirects, status codes) over both. Primary tests call Access and Google Auth directly; HTTP contract tests only check transport mapping. Production and fake Google Auth Adapters sit at the Google Auth Seam — CI never calls live Google.
+
+## Extension CredentialSource (#11)
+
+The extension deepens the existing `CredentialSource` Seam: `getStreetViewCredentials` (only Mint trigger; owns Grant cache + remint), `getAccount` (observe only — never Mints), `beginLogin` (opens Access OAuth start). Store Phase wires `AccessCredentialSource` in the background (HTTP Mint + tab OAuth) behind a messaging proxy so session cookies never depend on the Strava page origin. Dev Key Override remains a sibling Adapter selected only by the non-Store build alias.
